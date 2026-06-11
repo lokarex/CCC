@@ -63,8 +63,8 @@ void process_project(std::vector<std::string> source_list, std::string target,
             !compareFileModificationTime(source_file, target) ||
             !compareFileModificationTime(
                 ccc_home + "/build/lib/" + ccruntime_name, target) ||
-            !compareFileModificationTime(
-                ccc_home + "/build/lib/" + cccsdk_name, target)) {
+            !compareFileModificationTime(ccc_home + "/build/lib/" + cccsdk_name,
+                                         target)) {
             if (std::system(compile_cmd.c_str()) != 0) {
                 std::exit(1);
             }

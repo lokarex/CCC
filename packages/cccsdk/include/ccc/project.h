@@ -3,12 +3,13 @@
 
 #include "ccc/compile_task.h"
 #include "ccc/config.h"
-#include "ccc/execution.h"
-#include "ccc/library.h"
-
-#include <memory>
 #include <source_location>
 #include <vector>
+
+#ifdef _WIN32
+#define popen _popen
+#define pclose _pclose
+#endif
 
 namespace ccc {
 

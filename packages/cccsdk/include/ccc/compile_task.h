@@ -4,7 +4,6 @@
 #include "ccc/config.h"
 #include "ccc/dependency.h"
 
-#include <memory>
 #include <source_location>
 #include <string>
 #include <utility>
@@ -36,7 +35,7 @@ class compile_task : public ccc::config_manager {
           output_path(other.output_path), obj_path(other.obj_path),
           source_files(other.source_files), obj_files(other.obj_files),
           lib_files(other.lib_files), dependencies(other.dependencies),
-          loc(other.loc), status(other.status), loc_info(other.loc_info){};
+          loc(other.loc), status(other.status), loc_info(other.loc_info) {};
 
     /* The name of the task.(The path of the final product is output_path +
      * name) */

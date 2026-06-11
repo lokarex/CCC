@@ -1,6 +1,8 @@
 #include "ccc/project.h"
 #include "ccc/command.h"
+#include "ccc/execution.h"
 #include "ccc/info.hpp"
+#include "ccc/library.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -42,8 +44,8 @@ static project ccc_project(
             "directory with project.cpp to generate and call project, and call "
             "defautl_project in a directory without project.cpp.");
         ccc.add_source_files({"./packages/cccboot/src/main.cpp"});
-        ccc.add_header_folder_paths({"./packages/cccsdk/include",
-                                     "./packages/cccboot/include"});
+        ccc.add_header_folder_paths(
+            {"./packages/cccsdk/include", "./packages/cccboot/include"});
         self->add_task(&ccc);
 
         /* Describe the library file cccsdk. */
@@ -68,8 +70,7 @@ static project ccc_project(
     [](project*, string cmd, vector<string>) {
         // Copy the cccunit/inc directory to the build/inc directory when
         // running the build command.
-        if (cmd == "build" &&
-            fs::exists("./packages/cccsdk/include") &&
+        if (cmd == "build" && fs::exists("./packages/cccsdk/include") &&
             fs::is_directory("./packages/cccsdk/include")) {
 
             function<void(const fs::path& source, const fs::path& destination)>
@@ -133,6 +134,8 @@ static project ccc_project(
         "project(ccc).\n"
         "    line                 Print the number of lines of code for the "
         "ccc project.\n"
+        "    unittest [pkg]       Build and run unit tests for CCC "
+        "components.\n"
         "Extended arguments:\n"
         "    --noprint            Don't generate any output when compile the "
         "ccc.\n"
@@ -202,9 +205,8 @@ command line_cmd(
     "line",
     [](vector<string>) {
         int total_lines = 0;
-        vector<string> directories = {"./packages/cccboot",
-                                     "./packages/cccruntime",
-                                     "./packages/cccsdk"};
+        vector<string> directories = {
+            "./packages/cccboot", "./packages/cccruntime", "./packages/cccsdk"};
         unordered_set<string> valid_ext = {".cpp", ".h", ".hpp", ".c"};
 
         auto count_lines = [&](const fs::path& path) {
@@ -268,3 +270,104 @@ command line_cmd(
         cout << "Grand total lines of code: " << total_lines << endl;
     },
     "Print the number of lines of code for the ccc project.");
+
+command unittest_cmd(
+    "unittest",
+    [](vector<string> args) {
+        string component = args.empty() ? "" : args[0];
+
+        struct test_def {
+            string pkg;
+            string mod;
+            vector<string> extra_sources;
+        };
+        vector<test_def> all_tests = {
+            {"cccsdk", "config", {"packages/cccsdk/src/ccc/config.cpp"}},
+            {"cccsdk", "toolchain", {"packages/cccsdk/src/ccc/toolchain.cpp"}},
+            {"cccsdk",
+             "command",
+             {"packages/cccsdk/src/ccc/command.cpp",
+              "packages/cccsdk/src/ccc/global.cpp",
+              "packages/cccsdk/src/util/io.cpp"}},
+            {"cccsdk",
+             "global",
+             {"packages/cccsdk/src/ccc/global.cpp",
+              "packages/cccsdk/src/ccc/command.cpp",
+              "packages/cccsdk/src/util/io.cpp"}},
+        };
+
+        ccc::config project_cfg;
+        project_cfg.compile_flags = {"-g", "-std=c++20", "-W", "-Wall",
+                                     "-Wextra"};
+        project_cfg.header_folder_paths = {
+            "./packages/cccsdk/include",
+            "./vendor/doctest",
+        };
+        project_cfg.is_print = false;
+
+        int passed = 0;
+        int failed = 0;
+
+        for (auto& td : all_tests) {
+            if (!component.empty() && td.pkg != component)
+                continue;
+
+            string task_name = "unittest_" + td.pkg + "_" + td.mod;
+
+            cout << "[unittest] " << td.pkg << "/" << td.mod << " ... building"
+                 << endl;
+
+            ccc::execution t(task_name, "unit test: " + td.pkg + "/" + td.mod);
+            t.add_source_file("packages/" + td.pkg + "/tests/test_" + td.mod +
+                              ".cpp");
+            for (auto& src : td.extra_sources)
+                t.add_source_file(src);
+
+            vector<string> path;
+            try {
+                t.process(project_cfg, path);
+            } catch (...) {
+                failed++;
+                continue;
+            }
+
+            if (!t.status.empty()) {
+                cout << "[unittest] " << td.pkg << "/" << td.mod
+                     << " ... build FAILED" << endl
+                     << endl;
+                failed++;
+                continue;
+            }
+
+            cout << "[unittest] " << td.pkg << "/" << td.mod << " ... running"
+                 << endl;
+
+            fs::path exe_path = fs::path("build") / "bin" / t.name;
+            int exit_code = -1;
+#ifdef _WIN32
+            exit_code = system(exe_path.string().c_str());
+#endif
+#ifdef __linux__
+            exit_code = system(("bash -c '" + exe_path.string() + "'").c_str());
+#endif
+
+            if (exit_code == 0) {
+                cout << "[unittest] " << td.pkg << "/" << td.mod
+                     << " ... PASSED" << endl
+                     << endl;
+                passed++;
+            } else {
+                cout << "[unittest] " << td.pkg << "/" << td.mod
+                     << " ... FAILED (exit " << exit_code << ")" << endl
+                     << endl;
+                failed++;
+            }
+        }
+
+        cout << "================================\n";
+        cout << "Total: " << (passed + failed) << ", Passed: " << passed
+             << ", Failed: " << failed << endl;
+        if (failed > 0)
+            exit(-1);
+    },
+    "Build and run unit tests for CCC components.");
