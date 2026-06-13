@@ -27,7 +27,7 @@ inline std::string quote(const fs::path& path) {
 
 inline fs::path copy_example(const std::string& name) {
     fs::path repo = fs::current_path();
-    fs::path source = repo / "example" / name;
+    fs::path source = repo / "examples" / name;
     fs::path dest =
         repo / "build" / "tests" / "systemtest" / "work" / "examples" / name;
 

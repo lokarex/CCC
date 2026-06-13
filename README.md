@@ -52,7 +52,7 @@ make uninstall
 ccc help
 ```
 
-#### 1. Execution([Hello world](./example/hello_world/))
+#### 1. Execution([Hello world](./examples/hello_world/))
 ##### First, create the src/main.cpp file and write the following content.
 ```cpp
 #include <iostream>
@@ -103,7 +103,7 @@ g++ ./build/obj//src\main.obj -o ./build//hello_world
 Hello, World!
 ```
 
-#### 2. Library([Math library](./example/math_lib/))
+#### 2. Library([Math library](./examples/math_lib/))
 ##### There are two types of libraries in ccc: static library and shared library. The type of library is defined as follows(The static library is the default type).
 ```cpp
 enum library_type { static_library, shared_library };
@@ -154,7 +154,7 @@ g++ -c ./src/my_math.cpp -o ./build/obj//./src/my_math.obj  -I./inc/ -fdiagnosti
 ar rcs ./build//libmymath.lib ./build/obj//./src/my_math.obj
 ```
 
-#### 3. Dependency([My Math](./example/my_math/))
+#### 3. Dependency([My Math](./examples/my_math/))
 ##### You can consider library and execution as dependencies that can be added to library or execution.
 ##### We implement the library in math_lib and write the main function in math_exe to verify it.
 ##### Now I will show you how to describe the dependency relationships involved.
