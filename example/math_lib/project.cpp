@@ -4,12 +4,13 @@
 using namespace std;
 using namespace ccc;
 
-void init_project(project* self, string cmd, vector<string> args) {
+void init_project(project* self, string, vector<string>) {
     /* Create a library, When the suffix of 'name' is not written, ccc will
      * automatically add the prefix and suffix of the library based on the
      * platform. For example, under the Windows operating system, the name of a
      * static library will be changed to lib<name>.lib */
-    library mathlib("mymath", library_type::static_library, "My Math Library");
+    static library mathlib("mymath", library_type::static_library,
+                           "My Math Library");
 
     /* Change to shared library(Default is static library). */
     // mathlib.type = shared_library;
@@ -21,6 +22,6 @@ void init_project(project* self, string cmd, vector<string> args) {
     self->add_task(&mathlib); // Add library to project
 }
 
-void exit_project(project* self, string cmd, vector<string> args) {}
+void exit_project(project*, string, vector<string>) {}
 
 project my_project("Math_Lib", init_project, exit_project, "My Math Project");

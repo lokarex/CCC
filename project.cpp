@@ -121,6 +121,25 @@ static project ccc_project(
         // Clean the build/inc directory when running the clean command.
         if (cmd == "clean") {
             fs::remove_all("./build/inc");
+            fs::remove_all("./build/tests");
+            fs::remove_all("./build/obj/unittest");
+            fs::remove_all("./build/obj/systemtest");
+
+            auto remove_legacy_test_artifacts = [](const fs::path& root) {
+                if (!fs::exists(root) || !fs::is_directory(root))
+                    return;
+
+                for (const auto& entry : fs::directory_iterator(root)) {
+                    string name = entry.path().filename().string();
+                    if (name.starts_with("unittest_") ||
+                        name.starts_with("systemtest_")) {
+                        fs::remove_all(entry.path());
+                    }
+                }
+            };
+
+            remove_legacy_test_artifacts("./build");
+            remove_legacy_test_artifacts("./build/bin");
         }
     },
     "\n" + info::help_msg +
@@ -134,8 +153,13 @@ static project ccc_project(
         "project(ccc).\n"
         "    line                 Print the number of lines of code for the "
         "ccc project.\n"
-        "    unittest [pkg]       Build and run unit tests for CCC "
+        "    unittest [target]    Build and run unit tests for CCC "
         "components.\n"
+        "    systemtest|systest [suite]\n"
+        "                         Build and run system smoke tests for CCC "
+        "workflows.\n"
+        "    test [kind] [target]\n"
+        "                         Build and run CCC tests.\n"
         "Extended arguments:\n"
         "    --noprint            Don't generate any output when compile the "
         "ccc.\n"
@@ -271,103 +295,269 @@ command line_cmd(
     },
     "Print the number of lines of code for the ccc project.");
 
+namespace {
+struct ccc_test_def {
+    string group;
+    string name;
+    string file;
+    vector<string> extra_sources;
+};
+
+struct ccc_test_result {
+    int passed = 0;
+    int failed = 0;
+
+    int total() const { return passed + failed; }
+
+    void merge(const ccc_test_result& other) {
+        passed += other.passed;
+        failed += other.failed;
+    }
+};
+
+vector<ccc_test_def> unit_tests() {
+    return {
+        {"cccsdk",
+         "config",
+         "packages/cccsdk/tests/test_config.cpp",
+         {"packages/cccsdk/src/ccc/config.cpp"}},
+        {"cccsdk",
+         "toolchain",
+         "packages/cccsdk/tests/test_toolchain.cpp",
+         {"packages/cccsdk/src/ccc/toolchain.cpp"}},
+        {"cccsdk",
+         "command",
+         "packages/cccsdk/tests/test_command.cpp",
+         {"packages/cccsdk/src/ccc/command.cpp",
+          "packages/cccsdk/src/ccc/global.cpp",
+          "packages/cccsdk/src/util/io.cpp"}},
+        {"cccsdk",
+         "global",
+         "packages/cccsdk/tests/test_global.cpp",
+         {"packages/cccsdk/src/ccc/global.cpp",
+          "packages/cccsdk/src/ccc/command.cpp",
+          "packages/cccsdk/src/util/io.cpp"}},
+        {"cccsdk",
+         "compile_task",
+         "packages/cccsdk/tests/test_compile_task.cpp",
+         {"packages/cccsdk/src/ccc/compile_task.cpp",
+          "packages/cccsdk/src/ccc/config.cpp",
+          "packages/cccsdk/src/ccc/command.cpp",
+          "packages/cccsdk/src/ccc/global.cpp",
+          "packages/cccsdk/src/ccc/library.cpp",
+          "packages/cccsdk/src/ccc/execution.cpp",
+          "packages/cccsdk/src/ccc/toolchain.cpp",
+          "packages/cccsdk/src/util/io.cpp"}},
+        {"cccsdk",
+         "execution",
+         "packages/cccsdk/tests/test_execution.cpp",
+         {"packages/cccsdk/src/ccc/compile_task.cpp",
+          "packages/cccsdk/src/ccc/config.cpp",
+          "packages/cccsdk/src/ccc/command.cpp",
+          "packages/cccsdk/src/ccc/global.cpp",
+          "packages/cccsdk/src/ccc/execution.cpp",
+          "packages/cccsdk/src/ccc/toolchain.cpp",
+          "packages/cccsdk/src/util/io.cpp"}},
+        {"cccsdk",
+         "library",
+         "packages/cccsdk/tests/test_library.cpp",
+         {"packages/cccsdk/src/ccc/compile_task.cpp",
+          "packages/cccsdk/src/ccc/config.cpp",
+          "packages/cccsdk/src/ccc/command.cpp",
+          "packages/cccsdk/src/ccc/global.cpp",
+          "packages/cccsdk/src/ccc/library.cpp",
+          "packages/cccsdk/src/ccc/execution.cpp",
+          "packages/cccsdk/src/ccc/toolchain.cpp",
+          "packages/cccsdk/src/util/io.cpp"}},
+        {"cccsdk",
+         "project",
+         "packages/cccsdk/tests/test_project.cpp",
+         {"packages/cccsdk/src/ccc/compile_task.cpp",
+          "packages/cccsdk/src/ccc/config.cpp",
+          "packages/cccsdk/src/ccc/command.cpp",
+          "packages/cccsdk/src/ccc/global.cpp",
+          "packages/cccsdk/src/ccc/project.cpp",
+          "packages/cccsdk/src/ccc/execution.cpp",
+          "packages/cccsdk/src/ccc/toolchain.cpp",
+          "packages/cccsdk/src/util/io.cpp"}},
+        {"cccsdk",
+         "io",
+         "packages/cccsdk/tests/test_io.cpp",
+         {"packages/cccsdk/src/util/io.cpp"}},
+    };
+}
+
+vector<ccc_test_def> system_tests() {
+    return {
+        {"examples", "hello_world", "tests/system/test_hello_world.cpp", {}},
+        {"examples", "math_lib", "tests/system/test_math_lib.cpp", {}},
+        {"examples", "my_math", "tests/system/test_my_math.cpp", {}},
+    };
+}
+
+string test_display_name(const ccc_test_def& test) {
+    return test.group + "/" + test.name;
+}
+
+bool matches_test_filter(const ccc_test_def& test, const string& filter) {
+    return filter.empty() || test.group == filter || test.name == filter;
+}
+
+ccc_test_result run_registered_tests(const string& command_name,
+                                     const string& unknown_target_name,
+                                     const string& obj_root,
+                                     const vector<ccc_test_def>& all_tests,
+                                     const string& filter) {
+    ccc::config project_cfg;
+    project_cfg.compile_flags = {"-g", "-std=c++20", "-W", "-Wall", "-Wextra"};
+    project_cfg.header_folder_paths = {
+        "./packages/cccsdk/include",
+        "./vendor/doctest",
+    };
+    project_cfg.is_print = false;
+
+    ccc_test_result result;
+    int matched = 0;
+
+    for (const auto& td : all_tests) {
+        if (!matches_test_filter(td, filter))
+            continue;
+        matched++;
+
+        string display_name = test_display_name(td);
+        string task_name = command_name + "_" + td.group + "_" + td.name;
+        fs::path test_root = fs::path("build") / "tests" / obj_root;
+        fs::path test_bin = test_root / "bin";
+
+        cout << "[" << command_name << "] " << display_name << " ... building"
+             << endl;
+
+        ccc::execution t(task_name, command_name + ": " + display_name);
+        t.output_path = test_bin.string();
+        t.obj_path = (test_root / "obj" / td.group / td.name).string();
+        fs::remove_all(t.obj_path);
+        fs::remove(test_bin / task_name);
+        fs::remove(test_bin / (task_name + ".exe"));
+        t.add_source_file(td.file);
+        for (auto& src : td.extra_sources)
+            t.add_source_file(src);
+
+        vector<string> path;
+        try {
+            t.process(project_cfg, path);
+        } catch (...) {
+            result.failed++;
+            continue;
+        }
+
+        if (!t.status.empty()) {
+            cout << "[" << command_name << "] " << display_name
+                 << " ... build FAILED" << endl
+                 << endl;
+            result.failed++;
+            continue;
+        }
+
+        cout << "[" << command_name << "] " << display_name << " ... running"
+             << endl;
+
+        fs::path exe_path = fs::path(t.output_path) / t.name;
+        int exit_code = -1;
+#ifdef _WIN32
+        exit_code = system(exe_path.string().c_str());
+#endif
+#ifdef __linux__
+        exit_code = system(("bash -c '" + exe_path.string() + "'").c_str());
+#endif
+
+        if (exit_code == 0) {
+            cout << "[" << command_name << "] " << display_name << " ... PASSED"
+                 << endl
+                 << endl;
+            result.passed++;
+        } else {
+            cout << "[" << command_name << "] " << display_name
+                 << " ... FAILED (exit " << exit_code << ")" << endl
+                 << endl;
+            result.failed++;
+        }
+    }
+
+    if (matched == 0) {
+        cerr << "[" << command_name << "] unknown " << unknown_target_name
+             << ": " << filter << endl;
+        result.failed++;
+        return result;
+    }
+
+    cout << "================================\n";
+    cout << "Total: " << result.total() << ", Passed: " << result.passed
+         << ", Failed: " << result.failed << endl;
+    return result;
+}
+
+void exit_if_tests_failed(const ccc_test_result& result) {
+    if (result.failed > 0)
+        exit(-1);
+}
+} // namespace
+
 command unittest_cmd(
     "unittest",
     [](vector<string> args) {
-        string component = args.empty() ? "" : args[0];
-
-        struct test_def {
-            string pkg;
-            string mod;
-            vector<string> extra_sources;
-        };
-        vector<test_def> all_tests = {
-            {"cccsdk", "config", {"packages/cccsdk/src/ccc/config.cpp"}},
-            {"cccsdk", "toolchain", {"packages/cccsdk/src/ccc/toolchain.cpp"}},
-            {"cccsdk",
-             "command",
-             {"packages/cccsdk/src/ccc/command.cpp",
-              "packages/cccsdk/src/ccc/global.cpp",
-              "packages/cccsdk/src/util/io.cpp"}},
-            {"cccsdk",
-             "global",
-             {"packages/cccsdk/src/ccc/global.cpp",
-              "packages/cccsdk/src/ccc/command.cpp",
-              "packages/cccsdk/src/util/io.cpp"}},
-        };
-
-        ccc::config project_cfg;
-        project_cfg.compile_flags = {"-g", "-std=c++20", "-W", "-Wall",
-                                     "-Wextra"};
-        project_cfg.header_folder_paths = {
-            "./packages/cccsdk/include",
-            "./vendor/doctest",
-        };
-        project_cfg.is_print = false;
-
-        int passed = 0;
-        int failed = 0;
-
-        for (auto& td : all_tests) {
-            if (!component.empty() && td.pkg != component)
-                continue;
-
-            string task_name = "unittest_" + td.pkg + "_" + td.mod;
-
-            cout << "[unittest] " << td.pkg << "/" << td.mod << " ... building"
-                 << endl;
-
-            ccc::execution t(task_name, "unit test: " + td.pkg + "/" + td.mod);
-            t.add_source_file("packages/" + td.pkg + "/tests/test_" + td.mod +
-                              ".cpp");
-            for (auto& src : td.extra_sources)
-                t.add_source_file(src);
-
-            vector<string> path;
-            try {
-                t.process(project_cfg, path);
-            } catch (...) {
-                failed++;
-                continue;
-            }
-
-            if (!t.status.empty()) {
-                cout << "[unittest] " << td.pkg << "/" << td.mod
-                     << " ... build FAILED" << endl
-                     << endl;
-                failed++;
-                continue;
-            }
-
-            cout << "[unittest] " << td.pkg << "/" << td.mod << " ... running"
-                 << endl;
-
-            fs::path exe_path = fs::path("build") / "bin" / t.name;
-            int exit_code = -1;
-#ifdef _WIN32
-            exit_code = system(exe_path.string().c_str());
-#endif
-#ifdef __linux__
-            exit_code = system(("bash -c '" + exe_path.string() + "'").c_str());
-#endif
-
-            if (exit_code == 0) {
-                cout << "[unittest] " << td.pkg << "/" << td.mod
-                     << " ... PASSED" << endl
-                     << endl;
-                passed++;
-            } else {
-                cout << "[unittest] " << td.pkg << "/" << td.mod
-                     << " ... FAILED (exit " << exit_code << ")" << endl
-                     << endl;
-                failed++;
-            }
-        }
-
-        cout << "================================\n";
-        cout << "Total: " << (passed + failed) << ", Passed: " << passed
-             << ", Failed: " << failed << endl;
-        if (failed > 0)
-            exit(-1);
+        string filter = args.empty() ? "" : args[0];
+        ccc_test_result result = run_registered_tests(
+            "unittest", "unit test target", "unittest", unit_tests(), filter);
+        exit_if_tests_failed(result);
     },
     "Build and run unit tests for CCC components.");
+
+command systemtest_cmd(
+    {"systemtest", "systest"},
+    [](vector<string> args) {
+        string filter = args.empty() ? "" : args[0];
+        ccc_test_result result =
+            run_registered_tests("systemtest", "system test target",
+                                 "systemtest", system_tests(), filter);
+        exit_if_tests_failed(result);
+    },
+    "Build and run system smoke tests for CCC workflows.");
+
+command test_cmd(
+    "test",
+    [](vector<string> args) {
+        ccc_test_result result;
+
+        if (args.empty()) {
+            result.merge(run_registered_tests("unittest", "unit test target",
+                                              "unittest", unit_tests(), ""));
+            result.merge(
+                run_registered_tests("systemtest", "system test target",
+                                     "systemtest", system_tests(), ""));
+            exit_if_tests_failed(result);
+            return;
+        }
+
+        if (args.size() > 2) {
+            cerr << "[test] usage: test [unit|system] [target]" << endl;
+            exit(-1);
+        }
+
+        string kind = args[0];
+        string filter = args.size() == 2 ? args[1] : "";
+
+        if (kind == "unit") {
+            result = run_registered_tests("unittest", "unit test target",
+                                          "unittest", unit_tests(), filter);
+        } else if (kind == "system") {
+            result = run_registered_tests("systemtest", "system test target",
+                                          "systemtest", system_tests(), filter);
+        } else {
+            cerr << "[test] unknown test kind: " << kind
+                 << ". Known kinds: unit, system" << endl;
+            exit(-1);
+        }
+
+        exit_if_tests_failed(result);
+    },
+    "Build and run CCC tests.");

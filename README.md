@@ -76,7 +76,7 @@ using namespace std;
  * applications that make up the project. */
 void init_project(project* self, string cmd, vector<string> args) {
     // Create an application, hello_world is the name of the application.
-    execution exe("hello_world", "Say hello world!");
+    static execution exe("hello_world", "Say hello world!");
     exe.add_source_files({"./src"}, {".cpp"}); // Add source files
     self->add_task(&exe); // Add the application to the project
 }
@@ -124,7 +124,8 @@ void init_project(project* self, string cmd, vector<string> args) {
      * automatically add the prefix and suffix of the library based on the
      * platform. For example, under the Windows operating system, the name of a
      * static library will be changed to lib<name>.lib */
-    library mathlib("mymath", library_type::static_library, "My Math Library");
+    static library mathlib("mymath", library_type::static_library,
+                           "My Math Library");
 
     /* Change to shared library(Default is static library). */
     // mathlib.type = shared_library;
@@ -166,14 +167,15 @@ using namespace ccc;
 
 void init_project(project* self, string cmd, vector<string> args) {
     // Describe the library
-    library mathlib("mymath", library_type::static_library, "My Math Library");
+    static library mathlib("mymath", library_type::static_library,
+                           "My Math Library");
     mathlib.add_source_files({"./math_lib/src/my_math.cpp"}); // Add source file
     mathlib.add_header_folder_paths({
         "./math_lib/inc/", // Add header folder path
     });
 
     // Describe the executable
-    execution myexe("myexe", "My Executable to test my math library.");
+    static execution myexe("myexe", "My Executable to test my math library.");
     myexe.add_source_files({"./math_exe/src/main.cpp"});
 
     // Add dependency

@@ -102,8 +102,12 @@ void ccc::library::link(const ccc::config& project_cfg) {
 
     std::string cmd = this->config.toolchain.link_format.replace(replacements);
     // Link
-    ccc::io::exec_command(cmd, project_cfg.is_print && this->config.is_print,
-                          project_cfg.is_print && this->config.is_print);
+    if (!ccc::io::exec_command(cmd,
+                               project_cfg.is_print && this->config.is_print,
+                               project_cfg.is_print && this->config.is_print)) {
+        this->status.push_back("Fail to link library: " + this->output_path +
+                               "/" + this->name);
+    }
 }
 
 void ccc::library::transmit(ccc::compile_task& super) {

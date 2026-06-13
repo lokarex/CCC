@@ -3,13 +3,9 @@
 
 #include "ccc/compile_task.h"
 #include "ccc/config.h"
+#include <filesystem>
 #include <source_location>
 #include <vector>
-
-#ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
-#endif
 
 namespace ccc {
 
@@ -59,19 +55,7 @@ class project : public ccc::third_party, public ccc::config_manager {
             ->void,
         std::string description,
         std::string path = []() -> std::string {
-            FILE* pipe = popen("pwd", "r");
-            if (!pipe)
-                return "";
-            char buffer[128];
-            std::string result;
-            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-                result += buffer;
-            }
-            pclose(pipe);
-            if (!result.empty() && result.back() == '\n') {
-                result.pop_back();
-            }
-            return result;
+            return std::filesystem::current_path().string();
         }(),
         std::source_location loc = std::source_location::current());
 
@@ -101,5 +85,8 @@ class project : public ccc::third_party, public ccc::config_manager {
 };
 
 } // namespace ccc
+
+#include "ccc/execution.h"
+#include "ccc/library.h"
 
 #endif
