@@ -167,25 +167,27 @@ static project ccc_project(
         "the this project. But if you want to use them in other projects, you "
         "need to achieve them by yourself.\n");
 
-command debug_cmd(
-    "debug",
-    [](vector<string> args) {
-        cout << "Compile the ccc in debug mode." << endl;
-        std::string cmd = "ccc build debug";
-        for (size_t i = 0; i < args.size(); i++) {
-            cmd += " " + args[i];
-        }
+void run_debug_build(const vector<string>& args) {
+    cout << "Compile the ccc in debug mode." << endl;
+    std::string cmd = "ccc build debug";
+    for (size_t i = 0; i < args.size(); i++) {
+        cmd += " " + args[i];
+    }
 #ifdef _WIN32
-        if (system(cmd.c_str()) != 0) {
-            exit(-1);
-        }
+    if (system(cmd.c_str()) != 0) {
+        exit(-1);
+    }
 #endif
 #ifdef __linux__
-        if (system(("bash -c '" + cmd + "'").c_str()) != 0) {
-            exit(-1);
-        }
+    if (system(("bash -c '" + cmd + "'").c_str()) != 0) {
+        exit(-1);
+    }
 #endif
-    },
+}
+
+command debug_cmd(
+    "debug",
+    [](vector<string> args) { run_debug_build(args); },
     "Compile the ccc in debug mode.");
 
 command release_cmd(
@@ -500,6 +502,12 @@ void exit_if_tests_failed(const ccc_test_result& result) {
     if (result.failed > 0)
         exit(-1);
 }
+
+ccc_test_result run_system_tests(const string& filter) {
+    run_debug_build({});
+    return run_registered_tests("systemtest", "system test target",
+                                "systemtest", system_tests(), filter);
+}
 } // namespace
 
 command unittest_cmd(
@@ -516,9 +524,7 @@ command systemtest_cmd(
     {"systemtest", "systest"},
     [](vector<string> args) {
         string filter = args.empty() ? "" : args[0];
-        ccc_test_result result =
-            run_registered_tests("systemtest", "system test target",
-                                 "systemtest", system_tests(), filter);
+        ccc_test_result result = run_system_tests(filter);
         exit_if_tests_failed(result);
     },
     "Build and run system smoke tests for CCC workflows.");
@@ -531,9 +537,7 @@ command test_cmd(
         if (args.empty()) {
             result.merge(run_registered_tests("unittest", "unit test target",
                                               "unittest", unit_tests(), ""));
-            result.merge(
-                run_registered_tests("systemtest", "system test target",
-                                     "systemtest", system_tests(), ""));
+            result.merge(run_system_tests(""));
             exit_if_tests_failed(result);
             return;
         }
@@ -550,8 +554,7 @@ command test_cmd(
             result = run_registered_tests("unittest", "unit test target",
                                           "unittest", unit_tests(), filter);
         } else if (kind == "system") {
-            result = run_registered_tests("systemtest", "system test target",
-                                          "systemtest", system_tests(), filter);
+            result = run_system_tests(filter);
         } else {
             cerr << "[test] unknown test kind: " << kind
                  << ". Known kinds: unit, system" << endl;
