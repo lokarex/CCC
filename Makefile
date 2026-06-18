@@ -1,15 +1,3 @@
-# Obtain OS type
-ifeq ($(shell uname), Linux)
-    OS_TYPE = linux
-else ifeq ($(shell uname), Darwin)
-    OS_TYPE = macos
-else ifeq ($(OS), Windows_NT)
-    OS_TYPE = windows
-else
-    OS_TYPE = unknown
-	$(error Unsupported OS.)
-endif
-
 COMPILER=g++
 
 
@@ -29,22 +17,13 @@ build:
 clean:
 	rm -rf ./build
 
-ifeq ($(OS_TYPE), windows)
-TARGET_PATH = C:$(shell cmd /c echo %HOMEPATH%)\.ccc
-endif
-ifeq ($(OS_TYPE), linux)
 TARGET_PATH = $(shell echo $$HOME)/.ccc
-endif
 
 install:
 	mkdir -p $(TARGET_PATH)
 	cp -r ./build $(TARGET_PATH)
-ifeq ($(OS_TYPE), windows)
-	python ./script/windows_installer.py --target_path=$(TARGET_PATH)
-endif
-ifeq ($(OS_TYPE), linux)
-	python ./script/linux_installer.py --target_path=$(TARGET_PATH) > /dev/null 2>&1 || python3 ./script/linux_installer.py --target_path=$(TARGET_PATH)
-endif
+	cd scripts && python installer.py --target_path=$(TARGET_PATH)
 
 uninstall:
-	rm -rf $(shell echo $$HOME)/.ccc/build
+	cd scripts && python uninstaller.py
+	rm -rf $(TARGET_PATH)
