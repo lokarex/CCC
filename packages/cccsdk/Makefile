@@ -15,9 +15,9 @@ SOURCE_FILES = $(wildcard ./packages/cccsdk/src/ccc/*.cpp) \
 
 # Set object files
 ifeq ($(OS_TYPE), windows)
-OBJECT_FILES = $(patsubst ./packages/cccsdk/src/%.cpp,./build/obj/cccsdk/src/%.obj,$(SOURCE_FILES))
+OBJECT_FILES = $(patsubst ./packages/cccsdk/src/%.cpp,./build/obj/packages/cccsdk/src/%.obj,$(SOURCE_FILES))
 else ifeq ($(OS_TYPE), linux)
-OBJECT_FILES = $(patsubst ./packages/cccsdk/src/%.cpp,./build/obj/cccsdk/src/%.o,$(SOURCE_FILES))
+OBJECT_FILES = $(patsubst ./packages/cccsdk/src/%.cpp,./build/obj/packages/cccsdk/src/%.o,$(SOURCE_FILES))
 endif
 
 
@@ -36,9 +36,9 @@ endif
 
 # Compile
 ifeq ($(OS_TYPE), windows)
-./build/obj/cccsdk/src/%.obj: ./packages/cccsdk/src/%.cpp
+./build/obj/packages/cccsdk/src/%.obj: ./packages/cccsdk/src/%.cpp
 else ifeq ($(OS_TYPE), linux)
-./build/obj/cccsdk/src/%.o: ./packages/cccsdk/src/%.cpp
+./build/obj/packages/cccsdk/src/%.o: ./packages/cccsdk/src/%.cpp
 endif
 	mkdir -p $(dir $@)
 	$(COMPILER) -c $< -o $@  -I./packages/cccsdk/include $(COMPILE_FLAGS) -fPIC

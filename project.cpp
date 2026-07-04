@@ -186,8 +186,7 @@ void run_debug_build(const vector<string>& args) {
 }
 
 command debug_cmd(
-    "debug",
-    [](vector<string> args) { run_debug_build(args); },
+    "debug", [](vector<string> args) { run_debug_build(args); },
     "Compile the ccc in debug mode.");
 
 command release_cmd(

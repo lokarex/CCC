@@ -16,8 +16,15 @@ else ifeq ($(OS_TYPE), linux)
 ./build/lib/libcccruntime.a: ./packages/cccruntime/src/cccruntime.cpp
 endif
 	mkdir -p ./build/lib
+	mkdir -p ./build/obj/packages/cccruntime/src
 ifeq ($(OS_TYPE), windows)
-	$(COMPILER) ./packages/cccruntime/src/cccruntime.cpp -o ./build/lib/libcccruntime.lib -c -I./packages/cccsdk/include $(COMPILE_FLAGS)
+	$(COMPILER) ./packages/cccruntime/src/cccruntime.cpp -o ./build/obj/packages/cccruntime/src/cccruntime.obj -c -I./packages/cccsdk/include $(COMPILE_FLAGS)
 else ifeq ($(OS_TYPE), linux)
-	$(COMPILER) ./packages/cccruntime/src/cccruntime.cpp -o ./build/lib/libcccruntime.a -c -I./packages/cccsdk/include $(COMPILE_FLAGS)
+	$(COMPILER) ./packages/cccruntime/src/cccruntime.cpp -o ./build/obj/packages/cccruntime/src/cccruntime.o -c -I./packages/cccsdk/include $(COMPILE_FLAGS)
+endif
+
+ifeq ($(OS_TYPE), windows)
+	$(ARCHIVER) ./build/lib/libcccruntime.lib ./build/obj/packages/cccruntime/src/cccruntime.obj
+else ifeq ($(OS_TYPE), linux)
+	$(ARCHIVER) ./build/lib/libcccruntime.a ./build/obj/packages/cccruntime/src/cccruntime.o
 endif

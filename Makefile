@@ -1,5 +1,5 @@
 COMPILER=g++
-
+ARCHIVER=ar rcs
 
 debug:
 	make build COMPILER=$(COMPILER) COMPILE_FLAGS="-g -std=c++20 -W -Wall -Wextra" -B
@@ -9,7 +9,7 @@ release:
 
 build:
 	make -f ./packages/cccboot/Makefile COMPILER=$(COMPILER) COMPILE_FLAGS="$(COMPILE_FLAGS)" -j
-	make -f ./packages/cccruntime/Makefile COMPILER=$(COMPILER) COMPILE_FLAGS="$(COMPILE_FLAGS)" -j
+	make -f ./packages/cccruntime/Makefile COMPILER=$(COMPILER) COMPILE_FLAGS="$(COMPILE_FLAGS)" ARCHIVER="$(ARCHIVER)" -j
 	make -f ./packages/cccsdk/Makefile COMPILER=$(COMPILER) COMPILE_FLAGS="$(COMPILE_FLAGS)" -j
 	mkdir -p ./build/inc
 	cp -r ./packages/cccsdk/include/* ./build/inc
