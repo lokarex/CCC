@@ -29,9 +29,9 @@ else ifeq ($(OS_TYPE), linux)
 endif
 	mkdir -p ./build/lib
 ifeq ($(OS_TYPE), windows)
-	g++ -shared -o ./build/lib/cccsdk.dll $(OBJECT_FILES)
+	$(LINKER) -shared -o ./build/lib/cccsdk.dll $(OBJECT_FILES)
 else ifeq ($(OS_TYPE), linux)
-	g++ -shared -o ./build/lib/libcccsdk.so $(OBJECT_FILES)
+	$(LINKER) -shared -o ./build/lib/libcccsdk.so $(OBJECT_FILES)
 endif
 
 # Compile
