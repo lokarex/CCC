@@ -12,6 +12,7 @@ inline std::string help_msg =
     "without performing any other operations.(You can use this command with "
     "the 'flags=\"-g\"' argument to generate the executable project file that "
     "can be debugged.)\n"
+    "    new <path> [--bin|--lib] Create a new project (default: --bin).\n"
     "    build                Compile the project.\n"
     "    desc                 Get a description of what you want to know.\n"
     "    clean                Clean the product during the build process.\n"

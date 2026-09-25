@@ -4,6 +4,7 @@
 #include "ccc/cmd/clean.hpp"
 #include "ccc/cmd/desc.hpp"
 #include "ccc/cmd/help.hpp"
+#include "ccc/cmd/new.hpp"
 #include "ccc/command.h"
 #include "ccc/info.hpp"
 #include "ccc/project.h"
@@ -25,6 +26,9 @@ std::unordered_map<std::string, std::unordered_map<ccc::command::priority,
                                                    std::vector<ccc::command*>>>
     ccc::global_var::cmds;
 /* Built-in commands. */
+static ccc::command new_cmd("new", new_func,
+                            "Create a new executable or library project.",
+                            ccc::command::priority::high);
 static ccc::command build_cmd("build", build_func,
                               "Build the projects based on project.cpp.",
                               ccc::command::priority::high);
