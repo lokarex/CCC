@@ -6,7 +6,7 @@
 
 ccc::execution::execution(std::string name, std::string description,
                           std::source_location loc)
-    : ccc::compile_task(name, description, loc) {
+    : ccc::build_target(name, description, loc) {
     output_path = "./build/bin";
 }
 
@@ -74,7 +74,7 @@ void ccc::execution::link(const ccc::config& project_cfg) {
     }
 }
 
-void ccc::execution::transmit(ccc::compile_task& super) {
+void ccc::execution::transmit(ccc::build_target& super) {
     if (super.name.length())
         return;
 }

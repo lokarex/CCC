@@ -1,4 +1,4 @@
-#include "ccc/compile_task.h"
+#include "ccc/build_target.h"
 
 #include "ccc/global.h"
 #include "ccc/toolchain.h"
@@ -15,7 +15,7 @@
 #include <string>
 #include <thread>
 
-ccc::compile_task::compile_task(std::string name, std::string description,
+ccc::build_target::build_target(std::string name, std::string description,
                                 std::source_location loc)
     : name(name), loc(loc) {
     // Add description
@@ -24,7 +24,7 @@ ccc::compile_task::compile_task(std::string name, std::string description,
     this->loc_info = this->name + "(" + this->loc.file_name() + ":" +
                      std::to_string(this->loc.line()) + ")";
 }
-void ccc::compile_task::process(const ccc::config& project_cfg,
+void ccc::build_target::process(const ccc::config& project_cfg,
                                 std::vector<std::string>& path) {
     this->init(project_cfg);
 
@@ -64,7 +64,7 @@ void ccc::compile_task::process(const ccc::config& project_cfg,
     }
 }
 
-void ccc::compile_task::compile(const ccc::config& project_cfg,
+void ccc::build_target::compile(const ccc::config& project_cfg,
                                 std::vector<std::string>& path) {
 
     // Set the toolchain.
@@ -182,7 +182,7 @@ void ccc::compile_task::compile(const ccc::config& project_cfg,
 }
 
 static std::mutex compile_mtx;
-void ccc::compile_task::compile_source_file(const ccc::config& project_cfg,
+void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
                                             const std::string& source_file) {
 
     // Get the obj file path.
@@ -250,12 +250,12 @@ void ccc::compile_task::compile_source_file(const ccc::config& project_cfg,
     }
 }
 
-void ccc::compile_task::add_source_file(const std::string& file_path) {
+void ccc::build_target::add_source_file(const std::string& file_path) {
     this->source_files.push_back(file_path);
     return;
 }
 
-void ccc::compile_task::add_source_files(
+void ccc::build_target::add_source_files(
     const std::initializer_list<std::string>& file_paths) {
     for (auto file_path : file_paths) {
         this->source_files.push_back(file_path);
@@ -263,7 +263,7 @@ void ccc::compile_task::add_source_files(
     return;
 }
 
-void ccc::compile_task::add_source_files(
+void ccc::build_target::add_source_files(
     const std::initializer_list<std::string>& dir_paths,
     const std::initializer_list<std::string>& suffixs, bool recursive) {
     namespace fs = std::filesystem;
@@ -320,7 +320,7 @@ void ccc::compile_task::add_source_files(
         }
     }
 }
-void ccc::compile_task::add_source_files(
+void ccc::build_target::add_source_files(
     const std::initializer_list<std::string>& dir_paths,
     auto judge(const std::string&)->bool, bool recursive) {
     namespace fs = std::filesystem;
@@ -369,7 +369,7 @@ void ccc::compile_task::add_source_files(
         }
     }
 }
-void ccc::compile_task::remove_source_file(const std::string& file_path) {
+void ccc::build_target::remove_source_file(const std::string& file_path) {
     size_t index = 0;
     for (size_t i = 0; i < source_files.size(); ++i) {
         if (source_files[i] != file_path) {
@@ -384,7 +384,7 @@ void ccc::compile_task::remove_source_file(const std::string& file_path) {
     source_files.resize(index);
 }
 
-void ccc::compile_task::remove_source_files(
+void ccc::build_target::remove_source_files(
     const std::initializer_list<std::string>& file_paths) {
     // Iterate through paths to remove
     for (const auto& path : file_paths) {
@@ -403,7 +403,7 @@ void ccc::compile_task::remove_source_files(
     }
 }
 
-int ccc::compile_task::remove_source_files(bool (*judge)(const std::string&)) {
+int ccc::build_target::remove_source_files(bool (*judge)(const std::string&)) {
     int removed_count = 0;
     size_t index = 0;
 
@@ -425,7 +425,7 @@ int ccc::compile_task::remove_source_files(bool (*judge)(const std::string&)) {
     return removed_count;
 }
 
-bool ccc::compile_task::find_source_file(const std::string& file_path) {
+bool ccc::build_target::find_source_file(const std::string& file_path) {
     // Implement linear search manually
     for (const auto& path : source_files) {
         if (path == file_path) {

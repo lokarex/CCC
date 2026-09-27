@@ -1,10 +1,10 @@
 #ifndef __EXECUTION_H__
 #define __EXECUTION_H__
 
-#include "ccc/compile_task.h"
+#include "ccc/build_target.h"
 
 namespace ccc {
-class execution : public ccc::compile_task {
+class execution : public ccc::build_target {
   public:
     /**
      * @brief Construct a new execution object.
@@ -21,7 +21,7 @@ class execution : public ccc::compile_task {
      *
      * @param other The execution task to be copied.
      */
-    execution(const execution& other) : ccc::compile_task(other) {}
+    execution(const execution& other) : ccc::build_target(other) {}
 
     /**
      * @brief Initialize execution.
@@ -31,7 +31,7 @@ class execution : public ccc::compile_task {
     void init(const ccc::config& project_cfg) override;
 
     /**
-     * @brief Rewrite the link method of the compile_task class, call the
+     * @brief Rewrite the link method of the build_target class, call the
      *        compile method in it, and link the intermediate products.
      *
      * @param project_cfg The configuration of the project.
@@ -43,7 +43,7 @@ class execution : public ccc::compile_task {
      *
      * @param super The parent task.
      */
-    void transmit(ccc::compile_task& super) override;
+    void transmit(ccc::build_target& super) override;
 };
 } // namespace ccc
 

@@ -1,12 +1,12 @@
 #ifndef __LIBRARY_H__
 #define __LIBRARY_H__
 
-#include "ccc/compile_task.h"
+#include "ccc/build_target.h"
 
 namespace ccc {
 enum library_type { static_library, shared_library };
 
-class library : public ccc::compile_task {
+class library : public ccc::build_target {
   public:
     /**
      * @brief Construct a new library object.
@@ -25,7 +25,7 @@ class library : public ccc::compile_task {
      * @param other The library object to be copied.
      */
     library(const library& other)
-        : ccc::compile_task(other), type(other.type) {}
+        : ccc::build_target(other), type(other.type) {}
 
     /**
      * @brief Add information to the parent task based on different library
@@ -33,7 +33,7 @@ class library : public ccc::compile_task {
      *
      * @param super The parent task.
      */
-    void transmit(ccc::compile_task& super) override;
+    void transmit(ccc::build_target& super) override;
 
     library_type type = library_type::static_library;
 
@@ -45,7 +45,7 @@ class library : public ccc::compile_task {
     void init(const ccc::config& project_cfg) override;
 
     /**
-     * @brief Rewrite the link method of the compile_task class, call the
+     * @brief Rewrite the link method of the build_target class, call the
      *        compile method in it, and link the intermediate products.
      *
      * @param project_cfg The configuration of the project.

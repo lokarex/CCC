@@ -6,7 +6,7 @@
 
 ccc::library::library(std::string name, ccc::library_type type,
                       std::string description, std::source_location loc)
-    : ccc::compile_task(name, description, loc), type(type) {
+    : ccc::build_target(name, description, loc), type(type) {
     if (name.find(".") != std::string::npos ||
         name.find("/") != std::string::npos ||
         name.find("\\") != std::string::npos) {
@@ -110,7 +110,7 @@ void ccc::library::link(const ccc::config& project_cfg) {
     }
 }
 
-void ccc::library::transmit(ccc::compile_task& super) {
+void ccc::library::transmit(ccc::build_target& super) {
     // For static libraries
     if (this->type == static_library) {
         // Determine whether to add the prefix and the suffix.

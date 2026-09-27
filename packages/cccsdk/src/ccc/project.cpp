@@ -62,4 +62,4 @@ bool ccc::project::process(std::vector<std::string> args) {
     return status;
 }
 
-void ccc::project::add_task(ccc::compile_task* task) { tasks.push_back(task); }
+void ccc::project::add_task(ccc::build_target* task) { tasks.push_back(task); }

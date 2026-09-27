@@ -13,7 +13,7 @@ namespace ccc {
 class global_var {
   private:
     /* This static variable stores descriptions of
-     * compile_tasks/projects/commands. */
+     * build_targets/projects/commands. */
     static std::unordered_map<
         std::string, std::vector<std::pair<std::string, std::source_location>>>
         descs;
@@ -33,9 +33,9 @@ class global_var {
      * has a corresponding description, these descriptions will be stored
      * uniformly.
      *
-     * @param name Name of the compile_task/project/command.
-     * @param desc Description of the compile_task/project/command.
-     * @param loc The source location of the compile_task/project/command.
+     * @param name Name of the build_target/project/command.
+     * @param desc Description of the build_target/project/command.
+     * @param loc The source location of the build_target/project/command.
      */
     static void add_desc(const std::string name, const std::string desc,
                          std::source_location loc);
@@ -43,9 +43,9 @@ class global_var {
     /**
      * @brief Get descriptions from the global variable 'desc'.
      *
-     * @param name Name of the compile_task/project/command.
+     * @param name Name of the build_target/project/command.
      * @return std::vector<std::pair<std::string, std::source_location>>
-     * Descriptions of the compile_task/project/command. If the same name
+     * Descriptions of the build_target/project/command. If the same name
      * corresponds to more than one description, all are returned.
      */
     static std::vector<std::pair<std::string, std::source_location>>

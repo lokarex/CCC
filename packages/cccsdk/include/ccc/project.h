@@ -1,7 +1,7 @@
 #ifndef __CCC_PROJECT_H__
 #define __CCC_PROJECT_H__
 
-#include "ccc/compile_task.h"
+#include "ccc/build_target.h"
 #include "ccc/config.h"
 #include <filesystem>
 #include <source_location>
@@ -67,7 +67,7 @@ class project : public ccc::third_party, public ccc::config_manager {
     /* Used to pass parameters between init_func and exit_func. */
     void* arg;
 
-    std::vector<ccc::compile_task*> tasks;
+    std::vector<ccc::build_target*> tasks;
 
     /* Process the project.  */
     bool process(std::vector<std::string> args);
@@ -79,7 +79,7 @@ class project : public ccc::third_party, public ccc::config_manager {
      *
      * @param task The task need to be added to the project.
      */
-    void add_task(ccc::compile_task* task);
+    void add_task(ccc::build_target* task);
 
   private:
 };

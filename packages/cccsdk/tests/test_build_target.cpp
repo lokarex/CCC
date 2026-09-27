@@ -23,7 +23,7 @@ bool contains(const std::vector<std::string>& values,
 }
 } // namespace
 
-TEST_CASE("compile_task source file helpers add find and remove files") {
+TEST_CASE("build_target source file helpers add find and remove files") {
     execution task("__test_sources", "source helper test");
 
     task.add_source_file("a.cpp");
@@ -40,9 +40,9 @@ TEST_CASE("compile_task source file helpers add find and remove files") {
     CHECK(task.source_files.empty());
 }
 
-TEST_CASE("compile_task collects source files recursively by suffix") {
+TEST_CASE("build_target collects source files recursively by suffix") {
     fs::path root = fs::path("build") / "tests" / "unittest" / "work" /
-                    "compile_task" / "sources";
+                    "build_target" / "sources";
     fs::remove_all(root);
     fs::create_directories(root / "nested");
 
@@ -73,7 +73,7 @@ TEST_CASE("compile_task collects source files recursively by suffix") {
                  (root / "nested" / "helper.cpp").lexically_normal().string()));
 }
 
-TEST_CASE("compile_task propagates dependency header paths before compiling") {
+TEST_CASE("build_target propagates dependency header paths before compiling") {
     config cfg;
     cfg.is_print = false;
     cfg.toolchain = built_in_toolchain::gnu_toolchain();

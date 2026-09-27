@@ -1,7 +1,7 @@
 #ifndef __CCC_CMD_CLEAN_HPP__
 #define __CCC_CMD_CLEAN_HPP__
 
-#include "ccc/compile_task.h"
+#include "ccc/build_target.h"
 #include "ccc/global.h"
 #include "util/io.h"
 
