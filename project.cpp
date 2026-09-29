@@ -445,8 +445,8 @@ ccc_test_result run_registered_tests(const string& command_name,
              << endl;
 
         ccc::execution t(task_name, command_name + ": " + display_name);
-        t.output_path = test_bin.string();
-        t.obj_path = (test_root / "obj" / td.group / td.name).string();
+        t.output_path = test_bin;
+        t.obj_path = test_root / "obj" / td.group / td.name;
         fs::remove_all(t.obj_path);
         fs::remove(test_bin / task_name);
         fs::remove(test_bin / (task_name + ".exe"));
@@ -473,7 +473,7 @@ ccc_test_result run_registered_tests(const string& command_name,
         cout << "[" << command_name << "] " << display_name << " ... running"
              << endl;
 
-        fs::path exe_path = fs::path(t.output_path) / t.name;
+        fs::path exe_path = t.output_path / t.name;
         int exit_code = -1;
 #ifdef _WIN32
         exit_code = system(exe_path.string().c_str());

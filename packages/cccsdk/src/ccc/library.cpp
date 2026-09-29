@@ -1,8 +1,10 @@
 #include "ccc/library.h"
 
-#include "util/file.hpp"
 #include "util/io.h"
+#include <filesystem>
 #include <string>
+
+namespace fs = std::filesystem;
 
 ccc::library::library(std::string name, ccc::library_type type,
                       std::string description, std::source_location loc)
@@ -75,10 +77,19 @@ void ccc::library::link(const ccc::config& project_cfg) {
                                    project_cfg.link_flags.end());
 
     // If the output_path doesn't exist, create it.
-    std::string target_folder =
-        extractPath(this->output_path + "/" + this->name);
+    const fs::path target_file =
+        (this->output_path.empty() ? fs::path("./build/lib")
+                                   : this->output_path) /
+        this->name;
+    const fs::path target_folder = target_file.parent_path();
     if (!(fs::exists(target_folder) && fs::is_directory(target_folder))) {
         fs::create_directories(target_folder);
+    }
+
+    std::vector<std::string> object_file_strings;
+    object_file_strings.reserve(this->obj_files.size());
+    for (const auto& object_file : this->obj_files) {
+        object_file_strings.push_back(object_file.string());
     }
 
     auto replacements =
@@ -89,10 +100,8 @@ void ccc::library::link(const ccc::config& project_cfg) {
               : !project_cfg.toolchain.linker.empty()
                   ? project_cfg.toolchain.linker
                   : "g++"}},
-            {"OBJECT_FILES", {this->obj_files.begin(), this->obj_files.end()}},
-            {"OUTPUT_FILE",
-             {(this->output_path.empty() ? "./build/lib" : this->output_path) +
-              "/" + this->name}},
+            {"OBJECT_FILES", std::move(object_file_strings)},
+            {"OUTPUT_FILE", {target_file.string()}},
             {"LIBRARY_FILES", {this->lib_files.begin(), this->lib_files.end()}},
             {"LIBRARY_FOLDERS",
              {this->config.library_folder_paths.begin(),
@@ -105,8 +114,8 @@ void ccc::library::link(const ccc::config& project_cfg) {
     if (!ccc::io::exec_command(cmd,
                                project_cfg.is_print && this->config.is_print,
                                project_cfg.is_print && this->config.is_print)) {
-        this->status.push_back("Fail to link library: " + this->output_path +
-                               "/" + this->name);
+        this->status.push_back("Fail to link library: " +
+                               target_file.string());
     }
 }
 
@@ -116,7 +125,7 @@ void ccc::library::transmit(ccc::build_target& super) {
         // Determine whether to add the prefix and the suffix.
         if (this->name.find(".") == std::string::npos)
             this->init(super.config);
-        super.obj_files.push_back(this->output_path + "/" + this->name);
+        super.obj_files.push_back(this->output_path / this->name);
     }
 
     // For dynamic libraries
@@ -135,7 +144,7 @@ void ccc::library::transmit(ccc::build_target& super) {
             lib_name = lib_name.substr(3);
         }
 
-        super.config.library_folder_paths.push_back(this->output_path);
+        super.config.library_folder_paths.push_back(this->output_path.string());
         super.lib_files.push_back(lib_name);
     }
 }

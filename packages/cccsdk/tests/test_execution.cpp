@@ -40,7 +40,7 @@ TEST_CASE("execution link records command failure in status") {
     fs::create_directories(out_dir);
 
     execution exe("__test_execution_link_failure", "link failure");
-    exe.output_path = out_dir.string();
+    exe.output_path = out_dir;
     exe.init(cfg);
     exe.config.toolchain.link_format = Format(quiet_failure_command());
 

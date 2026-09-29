@@ -52,7 +52,8 @@ TEST_CASE("library transmit passes static library output to parent objects") {
     dep.transmit(consumer);
 
     REQUIRE(consumer.obj_files.size() == 1);
-    CHECK(consumer.obj_files[0].find("__test_static_dep") != std::string::npos);
+    CHECK(consumer.obj_files[0].string().find("__test_static_dep") !=
+          std::string::npos);
 }
 
 TEST_CASE("library transmit passes shared library search data to parent") {
@@ -81,7 +82,7 @@ TEST_CASE("library link records command failure in status") {
     fs::create_directories(out_dir);
 
     library lib("__test_library_link_failure", static_library, "link failure");
-    lib.output_path = out_dir.string();
+    lib.output_path = out_dir;
     lib.init(cfg);
     lib.config.toolchain.link_format = Format(quiet_failure_command());
 

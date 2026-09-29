@@ -2,7 +2,6 @@
 
 #include "ccc/global.h"
 #include "ccc/toolchain.h"
-#include "util/file.hpp"
 #include "util/io.h"
 
 #include <array>
@@ -14,6 +13,8 @@
 #include <mutex>
 #include <string>
 #include <thread>
+
+namespace fs = std::filesystem;
 
 ccc::build_target::build_target(std::string name, std::string description,
                                 std::source_location loc)
@@ -42,7 +43,7 @@ void ccc::build_target::process(const ccc::config& project_cfg,
         }
 
         // Remove the output file.
-        std::filesystem::remove(this->output_path + "/" + this->name);
+        fs::remove(this->output_path / this->name);
         return;
     }
 
@@ -59,7 +60,7 @@ void ccc::build_target::process(const ccc::config& project_cfg,
         }
 
         // Remove the output file.
-        std::filesystem::remove(this->output_path + "/" + this->name);
+        fs::remove(this->output_path / this->name);
         return;
     }
 }
@@ -70,6 +71,38 @@ void ccc::build_target::compile(const ccc::config& project_cfg,
     // Set the toolchain.
     this->init(project_cfg);
 
+    if (!this->source_files.empty() && this->obj_path.empty()) {
+        this->status.push_back("Object directory path is empty");
+        return;
+    }
+
+    // Validate every source before starting any compilation task.
+    for (const auto& source_file : this->source_files) {
+        if (source_file.is_absolute()) {
+            this->status.push_back("Source file path is absolute: " +
+                                   source_file.string());
+            return;
+        }
+        if (source_file.empty() || source_file.has_root_path()) {
+            this->status.push_back("Invalid source file path: " +
+                                   source_file.string());
+            return;
+        }
+
+        const fs::path relative = source_file.lexically_normal();
+        if (relative.empty() || relative == fs::path(".")) {
+            this->status.push_back("Invalid source file path: " +
+                                   source_file.string());
+            return;
+        }
+        if (*relative.begin() == fs::path("..")) {
+            this->status.push_back(
+                "Source file is outside project directory: " +
+                source_file.string());
+            return;
+        }
+    }
+
     // Add the compile task to the path.
     path.push_back(this->loc_info);
 
@@ -77,14 +110,13 @@ void ccc::build_target::compile(const ccc::config& project_cfg,
     for (auto& [dep, dep_desc] : dependencies) {
         // If the dependency does not exist and the is_compile is true, process
         // it.
-        if (!fs::exists(dep->output_path + "/" + dep->name) &&
-            dep_desc.is_compile) {
+        if (!fs::exists(dep->output_path / dep->name) && dep_desc.is_compile) {
             // Process the dependency.
             dep->process(project_cfg, path);
             if (dep->status.size() != 0) {
                 this->status.push_back("Fail to compile dependency: " +
                                        dep->loc_info);
-                std::filesystem::remove(dep->output_path + "/" + dep->name);
+                fs::remove(dep->output_path / dep->name);
             }
             ccc::io::println("");
         }
@@ -155,15 +187,15 @@ void ccc::build_target::compile(const ccc::config& project_cfg,
         active_threads++;
 
         // Launch a new thread to compile the source file.
-        threads.emplace_back(
-            [this, &project_cfg, source_file, &active_threads, &cv]() {
-                compile_source_file(project_cfg, source_file);
+        threads.emplace_back([this, &project_cfg, source_file,
+                              &active_threads, &cv]() {
+            compile_source_file(project_cfg, source_file);
 
-                // Decrement the active thread count and notify the waiting
-                // threads.
-                active_threads--;
-                cv.notify_one();
-            });
+            // Decrement the active thread count and notify the waiting
+            // threads.
+            active_threads--;
+            cv.notify_one();
+        });
     }
 
     // Wait for all threads to finish.
@@ -183,16 +215,12 @@ void ccc::build_target::compile(const ccc::config& project_cfg,
 
 static std::mutex compile_mtx;
 void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
-                                            const std::string& source_file) {
+                                            const fs::path& source_file) {
 
     // Get the obj file path.
-    std::string obj_file_path =
-        this->obj_path + "/" +
-        ((this->config.toolchain.target_os == windows_os)
-             ? changeFileExtension(source_file, ".obj")
-         : (this->config.toolchain.target_os == linux_os)
-             ? changeFileExtension(source_file, ".o")
-             : changeFileExtension(source_file, ".o"));
+    fs::path obj_file_path = this->obj_path / source_file.lexically_normal();
+    obj_file_path.replace_extension(
+        this->config.toolchain.target_os == windows_os ? ".obj" : ".o");
 
     // Add the obj file to the list.
     {
@@ -202,14 +230,14 @@ void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
 
     // If the obj file exists and is newer than the source file, skip it.
     if (fs::exists(obj_file_path) &&
-        compareFileModificationTime(source_file, obj_file_path)) {
+        fs::last_write_time(source_file) < fs::last_write_time(obj_file_path)) {
         return;
     }
 
     // Get the target folder(The storage path of the obj file.)
-    std::string target_folder = extractPath(obj_file_path);
+    fs::path target_folder = obj_file_path.parent_path();
     // If the folder doesn't exist, create it.
-    if (!directoryExists(target_folder)) {
+    if (!fs::is_directory(target_folder)) {
         fs::create_directories(target_folder);
     }
 
@@ -222,8 +250,8 @@ void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
               : project_cfg.toolchain.compiler.length() != 0
                   ? project_cfg.toolchain.compiler
                   : "g++"}},
-            {"SOURCE_FILE", {source_file}},
-            {"OBJECT_FILE", {obj_file_path}},
+            {"SOURCE_FILE", {source_file.string()}},
+            {"OBJECT_FILE", {obj_file_path.string()}},
             {"COMPILE_FLAGS",
              {this->config.compile_flags.begin(),
               this->config.compile_flags.end()}},
@@ -243,7 +271,7 @@ void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
 
         std::lock_guard<std::mutex> lock(compile_mtx);
         // Add the fail message to the status.
-        this->status.push_back("Fail to compile file: " + source_file);
+        this->status.push_back("Fail to compile file: " + source_file.string());
         // Remove the obj file that failed to compile.
         if (std::filesystem::exists(obj_file_path))
             std::filesystem::remove(obj_file_path);
@@ -251,14 +279,15 @@ void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
 }
 
 void ccc::build_target::add_source_file(const std::string& file_path) {
-    this->source_files.push_back(file_path);
+    // Keep the original spelling for the compile command.
+    this->source_files.emplace_back(file_path);
     return;
 }
 
 void ccc::build_target::add_source_files(
     const std::initializer_list<std::string>& file_paths) {
     for (auto file_path : file_paths) {
-        this->source_files.push_back(file_path);
+        this->source_files.emplace_back(file_path);
     }
     return;
 }
@@ -310,9 +339,7 @@ void ccc::build_target::add_source_files(
                 for (const auto& suffix : suffix_vector) {
                     if (ext == suffix) {
 
-                        // Add normalized path to source files list
-                        source_files.emplace_back(
-                            entry.path().lexically_normal().string());
+                        source_files.emplace_back(entry.path());
                         break; // No need to check other suffixes
                     }
                 }
@@ -341,12 +368,12 @@ void ccc::build_target::add_source_files(
 
                 // Check if the entry is a regular file and not a symbolic link
                 if (entry.is_regular_file() && !entry.is_symlink()) {
-                    std::string path = entry.path().lexically_normal().string();
+                    std::string path = entry.path().string();
 
                     // If the judge function returns true for this file, add it
                     // to source_files
                     if (judge(path))
-                        source_files.push_back(path);
+                        source_files.emplace_back(entry.path());
                 }
             }
         } else { // If recursive flag is false, use directory_iterator
@@ -356,23 +383,22 @@ void ccc::build_target::add_source_files(
 
                 // Check if the entry is a regular file and not a symbolic link
                 if (entry.is_regular_file() && !entry.is_symlink()) {
-                    std::string path = entry.path()
-                                           .lexically_normal()
-                                           .string(); // Normalize the file path
+                    std::string path = entry.path().string();
 
                     // If the judge function returns true for this file, add it
                     // to source_files
                     if (judge(path))
-                        source_files.push_back(path);
+                        source_files.emplace_back(entry.path());
                 }
             }
         }
     }
 }
 void ccc::build_target::remove_source_file(const std::string& file_path) {
+    const fs::path identity = fs::path(file_path).lexically_normal();
     size_t index = 0;
     for (size_t i = 0; i < source_files.size(); ++i) {
-        if (source_files[i] != file_path) {
+        if (source_files[i].lexically_normal() != identity) {
             // Move non-matching elements to front
             if (index != i) {
                 source_files[index] = std::move(source_files[i]);
@@ -388,10 +414,11 @@ void ccc::build_target::remove_source_files(
     const std::initializer_list<std::string>& file_paths) {
     // Iterate through paths to remove
     for (const auto& path : file_paths) {
+        const fs::path identity = fs::path(path).lexically_normal();
         // Reimplement single removal logic for each path
         size_t index = 0;
         for (size_t i = 0; i < source_files.size(); ++i) {
-            if (source_files[i] != path) {
+            if (source_files[i].lexically_normal() != identity) {
                 // Compact array by moving kept elements
                 if (index != i) {
                     source_files[index] = std::move(source_files[i]);
@@ -409,8 +436,7 @@ int ccc::build_target::remove_source_files(bool (*judge)(const std::string&)) {
 
     // Process all elements
     for (size_t i = 0; i < source_files.size(); ++i) {
-        if (!judge(
-                source_files[i])) { // Keep elements that don't match condition
+        if (!judge(source_files[i].string())) { // Keep non-matching elements
             // Shift elements to maintain order
             if (index != i) {
                 source_files[index] = std::move(source_files[i]);
@@ -426,9 +452,10 @@ int ccc::build_target::remove_source_files(bool (*judge)(const std::string&)) {
 }
 
 bool ccc::build_target::find_source_file(const std::string& file_path) {
+    const fs::path identity = fs::path(file_path).lexically_normal();
     // Implement linear search manually
     for (const auto& path : source_files) {
-        if (path == file_path) {
+        if (path.lexically_normal() == identity) {
             return true; // Early return when found
         }
     }

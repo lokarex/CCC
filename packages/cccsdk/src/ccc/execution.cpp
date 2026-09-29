@@ -1,8 +1,10 @@
 #include "ccc/execution.h"
 
-#include "util/file.hpp"
 #include "util/io.h"
+#include <filesystem>
 #include <string>
+
+namespace fs = std::filesystem;
 
 ccc::execution::execution(std::string name, std::string description,
                           std::source_location loc)
@@ -38,10 +40,19 @@ void ccc::execution::init(const ccc::config& project_cfg) {
 
 void ccc::execution::link(const ccc::config& project_cfg) {
     // If the output_path doesn't exist, create it.
-    std::string target_folder =
-        extractPath(this->output_path + "/" + this->name);
+    const fs::path target_file =
+        (this->output_path.empty() ? fs::path("./build/bin")
+                                   : this->output_path) /
+        this->name;
+    const fs::path target_folder = target_file.parent_path();
     if (!(fs::exists(target_folder) && fs::is_directory(target_folder))) {
         fs::create_directories(target_folder);
+    }
+
+    std::vector<std::string> object_file_strings;
+    object_file_strings.reserve(this->obj_files.size());
+    for (const auto& object_file : this->obj_files) {
+        object_file_strings.push_back(object_file.string());
     }
 
     auto replacements =
@@ -52,10 +63,8 @@ void ccc::execution::link(const ccc::config& project_cfg) {
               : !project_cfg.toolchain.linker.empty()
                   ? project_cfg.toolchain.linker
                   : "g++"}},
-            {"OBJECT_FILES", {this->obj_files.begin(), this->obj_files.end()}},
-            {"OUTPUT_FILE",
-             {(this->output_path.empty() ? "./build/bin" : this->output_path) +
-              "/" + this->name}},
+            {"OBJECT_FILES", std::move(object_file_strings)},
+            {"OUTPUT_FILE", {target_file.string()}},
             {"LIBRARY_FILES", {this->lib_files.begin(), this->lib_files.end()}},
             {"LIBRARY_FOLDERS",
              {this->config.library_folder_paths.begin(),
@@ -69,8 +78,8 @@ void ccc::execution::link(const ccc::config& project_cfg) {
     if (!ccc::io::exec_command(cmd,
                                project_cfg.is_print && this->config.is_print,
                                project_cfg.is_print && this->config.is_print)) {
-        this->status.push_back("Fail to link execution: " + this->output_path +
-                               "/" + this->name);
+        this->status.push_back("Fail to link execution: " +
+                               target_file.string());
     }
 }
 

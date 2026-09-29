@@ -32,17 +32,16 @@ inline auto clean_func = [](std::vector<std::string> args) {
              * path and obj path.) */
             for (size_t i = 0; i < project->tasks.size(); i++) {
                 project->tasks[i]->init(project->config);
-                if (std::filesystem::exists(project->tasks[i]->output_path +
-                                            "/" + project->tasks[i]->name)) {
+                const auto product_path = project->tasks[i]->output_path /
+                                          project->tasks[i]->name;
+                if (std::filesystem::exists(product_path)) {
                     ccc::io::println("[" + std::to_string(counter++) +
                                      "] clean " +
-                                     project->tasks[i]->output_path + "/" +
-                                     project->tasks[i]->name + " file from " +
+                                     product_path.string() + " file from " +
                                      project->loc_info + ": => " +
                                      project->tasks[i]->loc_info);
 
-                    std::filesystem::remove(project->tasks[i]->output_path +
-                                            "/" + project->tasks[i]->name);
+                    std::filesystem::remove(product_path);
                 }
             }
 
