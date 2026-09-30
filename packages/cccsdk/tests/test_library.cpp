@@ -35,24 +35,24 @@ TEST_CASE("library init applies platform names for static libraries") {
     windows_cfg.toolchain = built_in_toolchain::gnu_toolchain(windows_os, cpp);
     library windows_lib("mymath", static_library, "math");
     windows_lib.init(windows_cfg);
-    CHECK(windows_lib.name == "libmymath.lib");
+    CHECK(windows_lib.get_name() == "libmymath.lib");
 
     config linux_cfg;
     linux_cfg.toolchain = built_in_toolchain::gnu_toolchain(linux_os, cpp);
     library linux_lib("mymath", static_library, "math");
     linux_lib.init(linux_cfg);
-    CHECK(linux_lib.name == "libmymath.a");
+    CHECK(linux_lib.get_name() == "libmymath.a");
 }
 
 TEST_CASE("library transmit passes static library output to parent objects") {
     execution consumer("__test_static_consumer", "consumer");
     library dep("__test_static_dep", static_library, "dependency");
-    dep.output_path = "build/tests/unittest/work/library";
+    dep.set_output_path("build/tests/unittest/work/library");
 
     dep.transmit(consumer);
 
-    REQUIRE(consumer.obj_files.size() == 1);
-    CHECK(consumer.obj_files[0].string().find("__test_static_dep") !=
+    REQUIRE(consumer.get_obj_files().size() == 1);
+    CHECK(consumer.get_obj_files()[0].string().find("__test_static_dep") !=
           std::string::npos);
 }
 
@@ -62,14 +62,14 @@ TEST_CASE("library transmit passes shared library search data to parent") {
 
     execution consumer("__test_shared_consumer", "consumer");
     library dep("sharedname", shared_library, "dependency");
-    dep.output_path = "build/tests/unittest/work/library";
+    dep.set_output_path("build/tests/unittest/work/library");
     dep.init(cfg);
 
     dep.transmit(consumer);
 
     CHECK(contains(consumer.config.library_folder_paths,
                    "build/tests/unittest/work/library"));
-    CHECK(contains(consumer.lib_files, "sharedname"));
+    CHECK(contains(consumer.get_lib_files(), "sharedname"));
 }
 
 TEST_CASE("library link records command failure in status") {
@@ -82,12 +82,12 @@ TEST_CASE("library link records command failure in status") {
     fs::create_directories(out_dir);
 
     library lib("__test_library_link_failure", static_library, "link failure");
-    lib.output_path = out_dir;
+    lib.set_output_path(out_dir);
     lib.init(cfg);
     lib.config.toolchain.link_format = Format(quiet_failure_command());
 
     lib.link(cfg);
 
-    REQUIRE_FALSE(lib.status.empty());
-    CHECK(lib.status[0].find("Fail to link") != std::string::npos);
+    REQUIRE_FALSE(lib.get_status().empty());
+    CHECK(lib.get_status()[0].find("Fail to link") != std::string::npos);
 }

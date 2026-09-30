@@ -38,6 +38,7 @@ class build_target : public ccc::config_manager {
           lib_files(other.lib_files), dependencies(other.dependencies),
           loc(other.loc), status(other.status), loc_info(other.loc_info) {};
 
+  private:
     /* The name of the target. The final product is output_path / name. */
     std::string name;
 
@@ -70,6 +71,126 @@ class build_target : public ccc::config_manager {
 
     /* The simple information of the location. */
     std::string loc_info;
+
+  public:
+    /**
+     * @brief Get the name of the build target.
+     *
+     * @return A const reference to the current target name, including
+     *         platform prefixes and suffixes.
+     */
+    const std::string& get_name() const noexcept { return name; }
+
+    /**
+     * @brief Get the output directory of the build target.
+     *
+     * @return A const reference to the directory for the final product.
+     */
+    const std::filesystem::path& get_output_path() const noexcept {
+        return output_path;
+    }
+
+    /**
+     * @brief Get the object directory of the build target.
+     *
+     * @return A const reference to the directory for intermediate products.
+     */
+    const std::filesystem::path& get_obj_path() const noexcept {
+        return obj_path;
+    }
+
+    /**
+     * @brief Get the source files of the build target.
+     *
+     * @return A const reference to the source files.
+     */
+    const std::vector<std::filesystem::path>& get_source_files() const noexcept {
+        return source_files;
+    }
+
+    /**
+     * @brief Get the object files of the build target.
+     *
+     * @return A const reference to the generated and manually added object
+     *         files.
+     */
+    const std::vector<std::filesystem::path>& get_obj_files() const noexcept {
+        return obj_files;
+    }
+
+    /**
+     * @brief Get the library names required by the build target.
+     *
+     * @return A const reference to the library names.
+     */
+    const std::vector<std::string>& get_lib_files() const noexcept {
+        return lib_files;
+    }
+
+    /**
+     * @brief Get the dependencies of the build target.
+     *
+     * @return A const reference to the dependency entries. The target
+     *         pointers are non-owning.
+     */
+    const std::vector<std::pair<ccc::build_target*, dependency_description>>&
+    get_dependencies() const noexcept {
+        return dependencies;
+    }
+
+    /**
+     * @brief Get the source location of the build target.
+     *
+     * @return The source location where the build target was declared.
+     */
+    std::source_location get_loc() const noexcept { return loc; }
+
+    /**
+     * @brief Get the errors recorded while building the target.
+     *
+     * @return A const reference to the recorded build errors.
+     */
+    const std::vector<std::string>& get_status() const noexcept { return status; }
+
+    /**
+     * @brief Get the simple information of the build target location.
+     *
+     * @return A const reference to the diagnostic information captured at
+     *         construction.
+     */
+    const std::string& get_loc_info() const noexcept { return loc_info; }
+
+    /**
+     * @brief Set the output directory without changing other build state.
+     *
+     * @param path The directory for the final product.
+     */
+    void set_output_path(const std::filesystem::path& path) {
+        output_path = path;
+    }
+
+    /**
+     * @brief Set the object directory without changing other build state.
+     *
+     * @param path The directory for intermediate products.
+     */
+    void set_obj_path(const std::filesystem::path& path) { obj_path = path; }
+
+    /**
+     * @brief Add an object file or library artifact to the link inputs.
+     *
+     * @param path The path of the object file or library artifact.
+     */
+    void add_obj_file(const std::filesystem::path& path) {
+        obj_files.push_back(path);
+    }
+
+    /**
+     * @brief Add a library name to the link inputs.
+     *
+     * @param name The name of the library required by the build target.
+     */
+    void add_lib_file(const std::string& name) { lib_files.push_back(name); }
 
     /**
      * @brief Add a dependency to the build target.
@@ -210,6 +331,21 @@ class build_target : public ccc::config_manager {
      * @return false The file_path is not in the source_files.
      */
     virtual bool find_source_file(const std::string& file_path) final;
+
+  protected:
+    /**
+     * @brief Set the product name from a derived build target.
+     *
+     * @param value The platform-specific product name.
+     */
+    void set_name(const std::string& value) { name = value; }
+
+    /**
+     * @brief Add a build error from a derived build target.
+     *
+     * @param message The build error message.
+     */
+    void add_status(const std::string& message) { status.push_back(message); }
 
   private:
     /**

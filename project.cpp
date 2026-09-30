@@ -445,9 +445,9 @@ ccc_test_result run_registered_tests(const string& command_name,
              << endl;
 
         ccc::execution t(task_name, command_name + ": " + display_name);
-        t.output_path = test_bin;
-        t.obj_path = test_root / "obj" / td.group / td.name;
-        fs::remove_all(t.obj_path);
+        t.set_output_path(test_bin);
+        t.set_obj_path(test_root / "obj" / td.group / td.name);
+        fs::remove_all(t.get_obj_path());
         fs::remove(test_bin / task_name);
         fs::remove(test_bin / (task_name + ".exe"));
         t.add_source_file(td.file);
@@ -462,7 +462,7 @@ ccc_test_result run_registered_tests(const string& command_name,
             continue;
         }
 
-        if (!t.status.empty()) {
+        if (!t.get_status().empty()) {
             cout << "[" << command_name << "] " << display_name
                  << " ... build FAILED" << endl
                  << endl;
@@ -473,7 +473,7 @@ ccc_test_result run_registered_tests(const string& command_name,
         cout << "[" << command_name << "] " << display_name << " ... running"
              << endl;
 
-        fs::path exe_path = t.output_path / t.name;
+        fs::path exe_path = t.get_output_path() / t.get_name();
         int exit_code = -1;
 #ifdef _WIN32
         exit_code = system(exe_path.string().c_str());

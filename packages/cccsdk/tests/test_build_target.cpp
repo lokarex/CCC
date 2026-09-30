@@ -6,6 +6,7 @@
 #include "ccc/config.h"
 #include "ccc/toolchain.h"
 
+#include <concepts>
 #include <filesystem>
 #include <fstream>
 #include <source_location>
@@ -15,6 +16,54 @@ using namespace ccc;
 namespace fs = std::filesystem;
 
 namespace {
+#define CHECK_BUILD_TARGET_FIELD(field, ...)                                    \
+    template <typename T>                                                      \
+    concept exposes_##field = requires(T& target) { target.field; };            \
+    template <typename T>                                                      \
+    concept reads_##field = requires(const T& target, T& mutable_target) {      \
+        { target.get_##field() } noexcept -> std::same_as<__VA_ARGS__>;         \
+        { mutable_target.get_##field() } noexcept -> std::same_as<__VA_ARGS__>; \
+    };                                                                         \
+    static_assert(!exposes_##field<build_target>,                               \
+                  #field " must not be publicly accessible");                  \
+    static_assert(reads_##field<build_target>,                                  \
+                  #field " must have a read-only noexcept getter")
+
+CHECK_BUILD_TARGET_FIELD(name, const std::string&);
+CHECK_BUILD_TARGET_FIELD(output_path, const fs::path&);
+CHECK_BUILD_TARGET_FIELD(obj_path, const fs::path&);
+CHECK_BUILD_TARGET_FIELD(source_files, const std::vector<fs::path>&);
+CHECK_BUILD_TARGET_FIELD(obj_files, const std::vector<fs::path>&);
+CHECK_BUILD_TARGET_FIELD(lib_files, const std::vector<std::string>&);
+CHECK_BUILD_TARGET_FIELD(
+    dependencies,
+    const std::vector<std::pair<build_target*, dependency_description>>&);
+CHECK_BUILD_TARGET_FIELD(loc, std::source_location);
+CHECK_BUILD_TARGET_FIELD(status, const std::vector<std::string>&);
+CHECK_BUILD_TARGET_FIELD(loc_info, const std::string&);
+
+#undef CHECK_BUILD_TARGET_FIELD
+
+template <typename T>
+concept exposes_set_name = requires(T& target) { target.set_name("name"); };
+
+template <typename T>
+concept exposes_add_status = requires(T& target) { target.add_status("error"); };
+
+static_assert(!exposes_set_name<build_target>);
+static_assert(!exposes_add_status<build_target>);
+
+template <typename T>
+concept accepts_build_inputs = requires(T& target, const fs::path& path,
+                                       const std::string& library_name) {
+    { target.set_output_path(path) } -> std::same_as<void>;
+    { target.set_obj_path(path) } -> std::same_as<void>;
+    { target.add_obj_file(path) } -> std::same_as<void>;
+    { target.add_lib_file(library_name) } -> std::same_as<void>;
+};
+
+static_assert(accepts_build_inputs<build_target>);
+
 class test_target : public build_target {
   public:
     test_target(std::string name, std::string description,
@@ -46,37 +95,37 @@ TEST_CASE("build_target matches equivalent source path spellings") {
 
     CHECK(target.find_source_file("src/main.cpp"));
     target.remove_source_file("src/main.cpp");
-    CHECK(target.source_files.empty());
+    CHECK(target.get_source_files().empty());
 
     target.add_source_files({"./src/a.cpp", "src/../src/b.cpp"});
     target.remove_source_files({"src/a.cpp", "src/b.cpp"});
-    CHECK(target.source_files.empty());
+    CHECK(target.get_source_files().empty());
 }
 
 TEST_CASE("build_target copy keeps path values independent") {
     test_target original("test_build_target_copy_paths", "copy paths");
-    original.output_path = "build/bin";
-    original.obj_path = "build/obj";
+    original.set_output_path("build/bin");
+    original.set_obj_path("build/obj");
     original.add_source_file("./src/main.cpp");
-    original.obj_files.emplace_back("build/obj/src/main.o");
+    original.add_obj_file("build/obj/src/main.o");
 
     test_target copy(original);
-    original.output_path = "elsewhere";
-    original.source_files.clear();
-    original.obj_files.clear();
+    original.set_output_path("elsewhere");
+    original.remove_source_file("./src/main.cpp");
+    original.add_obj_file("build/obj/src/other.o");
 
-    CHECK(copy.output_path == fs::path("build/bin"));
-    CHECK(copy.obj_path == fs::path("build/obj"));
-    CHECK(copy.source_files == std::vector<fs::path>{"./src/main.cpp"});
-    CHECK(copy.obj_files == std::vector<fs::path>{"build/obj/src/main.o"});
+    CHECK(copy.get_output_path() == fs::path("build/bin"));
+    CHECK(copy.get_obj_path() == fs::path("build/obj"));
+    CHECK(copy.get_source_files() == std::vector<fs::path>{"./src/main.cpp"});
+    CHECK(copy.get_obj_files() == std::vector<fs::path>{"build/obj/src/main.o"});
 }
 
 TEST_CASE("build_target rejects a source path outside the project") {
     test_target target("test_build_target_rejects_parent_source",
                        "reject source outside project");
     target.config.toolchain = built_in_toolchain::gnu_toolchain();
-    target.obj_path = "build/tests/unittest/work/build_target/rejected_obj";
-    fs::remove_all(target.obj_path);
+    target.set_obj_path("build/tests/unittest/work/build_target/rejected_obj");
+    fs::remove_all(target.get_obj_path());
     target.add_source_file("packages/cccsdk/tests/test_build_target.cpp");
     target.add_source_file("../outside.cpp");
 
@@ -85,31 +134,31 @@ TEST_CASE("build_target rejects a source path outside the project") {
     std::vector<std::string> trace;
     target.compile(project_cfg, trace);
 
-    REQUIRE_FALSE(target.status.empty());
-    CHECK(target.status[0].find("outside") != std::string::npos);
-    CHECK(target.obj_files.empty());
-    CHECK_FALSE(fs::exists(target.obj_path));
+    REQUIRE_FALSE(target.get_status().empty());
+    CHECK(target.get_status()[0].find("outside") != std::string::npos);
+    CHECK(target.get_obj_files().empty());
+    CHECK_FALSE(fs::exists(target.get_obj_path()));
 }
 
 TEST_CASE("build_target permits no-source targets without an object directory") {
     test_target target("test_build_target_no_source_object_path",
                        "no source files");
-    target.obj_path.clear();
+    target.set_obj_path({});
 
     config project_cfg;
     project_cfg.is_print = false;
     std::vector<std::string> trace;
     target.compile(project_cfg, trace);
 
-    CHECK(target.status.empty());
+    CHECK(target.get_status().empty());
 }
 
 TEST_CASE("build_target rejects an absolute source path") {
     test_target target("test_build_target_rejects_absolute_source",
                        "reject absolute source path");
     target.config.toolchain = built_in_toolchain::gnu_toolchain();
-    target.obj_path = "build/tests/unittest/work/build_target/rejected_obj";
-    fs::remove_all(target.obj_path);
+    target.set_obj_path("build/tests/unittest/work/build_target/rejected_obj");
+    fs::remove_all(target.get_obj_path());
     target.add_source_file("packages/cccsdk/tests/test_build_target.cpp");
     target.add_source_file(
         fs::absolute("packages/cccsdk/tests/test_build_target.cpp").string());
@@ -119,10 +168,10 @@ TEST_CASE("build_target rejects an absolute source path") {
     std::vector<std::string> trace;
     target.compile(project_cfg, trace);
 
-    REQUIRE_FALSE(target.status.empty());
-    CHECK(target.status[0].find("absolute") != std::string::npos);
-    CHECK(target.obj_files.empty());
-    CHECK_FALSE(fs::exists(target.obj_path));
+    REQUIRE_FALSE(target.get_status().empty());
+    CHECK(target.get_status()[0].find("absolute") != std::string::npos);
+    CHECK(target.get_obj_files().empty());
+    CHECK_FALSE(fs::exists(target.get_obj_path()));
 }
 
 TEST_CASE("build_target places normalized objects below obj_path") {
@@ -136,7 +185,7 @@ TEST_CASE("build_target places normalized objects below obj_path") {
     target.config.toolchain = built_in_toolchain::gnu_toolchain();
     target.config.toolchain.compile_format =
         target.config.toolchain.execution_compile_format;
-    target.obj_path = root / "obj";
+    target.set_obj_path(root / "obj");
     target.add_source_file((root / "src" / ".." / "src" / "main.cpp").string());
 
     config project_cfg;
@@ -145,18 +194,18 @@ TEST_CASE("build_target places normalized objects below obj_path") {
     target.compile(project_cfg, trace);
 
     std::string errors;
-    for (const auto& message : target.status)
+    for (const auto& message : target.get_status())
         errors += message + "\n";
     INFO(errors);
-    REQUIRE(target.status.empty());
-    REQUIRE(target.obj_files.size() == 1);
+    REQUIRE(target.get_status().empty());
+    REQUIRE(target.get_obj_files().size() == 1);
     fs::path expected = root / "obj" / root / "src" / "main.cpp";
 #ifdef _WIN32
     expected.replace_extension(".obj");
 #else
     expected.replace_extension(".o");
 #endif
-    CHECK(target.obj_files[0].generic_string() == expected.generic_string());
+    CHECK(target.get_obj_files()[0].generic_string() == expected.generic_string());
     CHECK(fs::exists(expected));
 }
 

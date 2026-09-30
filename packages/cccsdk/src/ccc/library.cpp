@@ -19,7 +19,7 @@ ccc::library::library(std::string name, ccc::library_type type,
         exit(1);
     }
 
-    output_path = "./build/lib";
+    set_output_path("./build/lib");
 }
 
 void ccc::library::init(const ccc::config& project_cfg) {
@@ -50,21 +50,21 @@ void ccc::library::init(const ccc::config& project_cfg) {
 
     // Set the library name prefix and suffix according to the target
     // operating system. Windows
-    if (this->name.find(".") == std::string::npos) {
+    if (this->get_name().find(".") == std::string::npos) {
         if (this->config.toolchain.target_os == ccc::system_type::windows_os) {
             if (this->type == library_type::static_library) {
-                this->name = "lib" + this->name + ".lib";
+                this->set_name("lib" + this->get_name() + ".lib");
             } else if (this->type == library_type::shared_library) {
-                this->name = this->name + ".dll";
+                this->set_name(this->get_name() + ".dll");
             }
         }
         // Linux
         else if (this->config.toolchain.target_os ==
                  ccc::system_type::linux_os) {
             if (this->type == library_type::static_library) {
-                this->name = "lib" + this->name + ".a";
+                this->set_name("lib" + this->get_name() + ".a");
             } else if (this->type == library_type::shared_library) {
-                this->name = "lib" + this->name + ".so";
+                this->set_name("lib" + this->get_name() + ".so");
             }
         }
     }
@@ -78,17 +78,17 @@ void ccc::library::link(const ccc::config& project_cfg) {
 
     // If the output_path doesn't exist, create it.
     const fs::path target_file =
-        (this->output_path.empty() ? fs::path("./build/lib")
-                                   : this->output_path) /
-        this->name;
+        (this->get_output_path().empty() ? fs::path("./build/lib")
+                                         : this->get_output_path()) /
+        this->get_name();
     const fs::path target_folder = target_file.parent_path();
     if (!(fs::exists(target_folder) && fs::is_directory(target_folder))) {
         fs::create_directories(target_folder);
     }
 
     std::vector<std::string> object_file_strings;
-    object_file_strings.reserve(this->obj_files.size());
-    for (const auto& object_file : this->obj_files) {
+    object_file_strings.reserve(this->get_obj_files().size());
+    for (const auto& object_file : this->get_obj_files()) {
         object_file_strings.push_back(object_file.string());
     }
 
@@ -102,7 +102,8 @@ void ccc::library::link(const ccc::config& project_cfg) {
                   : "g++"}},
             {"OBJECT_FILES", std::move(object_file_strings)},
             {"OUTPUT_FILE", {target_file.string()}},
-            {"LIBRARY_FILES", {this->lib_files.begin(), this->lib_files.end()}},
+            {"LIBRARY_FILES",
+             {this->get_lib_files().begin(), this->get_lib_files().end()}},
             {"LIBRARY_FOLDERS",
              {this->config.library_folder_paths.begin(),
               this->config.library_folder_paths.end()}},
@@ -114,8 +115,7 @@ void ccc::library::link(const ccc::config& project_cfg) {
     if (!ccc::io::exec_command(cmd,
                                project_cfg.is_print && this->config.is_print,
                                project_cfg.is_print && this->config.is_print)) {
-        this->status.push_back("Fail to link library: " +
-                               target_file.string());
+        this->add_status("Fail to link library: " + target_file.string());
     }
 }
 
@@ -123,15 +123,15 @@ void ccc::library::transmit(ccc::build_target& super) {
     // For static libraries
     if (this->type == static_library) {
         // Determine whether to add the prefix and the suffix.
-        if (this->name.find(".") == std::string::npos)
+        if (this->get_name().find(".") == std::string::npos)
             this->init(super.config);
-        super.obj_files.push_back(this->output_path / this->name);
+        super.add_obj_file(this->get_output_path() / this->get_name());
     }
 
     // For dynamic libraries
     else if (this->type == shared_library) {
         // Remove the prefix and suffix of the library name.
-        std::string lib_name = this->name;
+        std::string lib_name = this->get_name();
         if (lib_name.size() >= 4 &&
             lib_name.substr(lib_name.size() - 4) == ".dll") {
             lib_name = lib_name.substr(0, lib_name.size() - 4);
@@ -144,7 +144,8 @@ void ccc::library::transmit(ccc::build_target& super) {
             lib_name = lib_name.substr(3);
         }
 
-        super.config.library_folder_paths.push_back(this->output_path.string());
-        super.lib_files.push_back(lib_name);
+        super.config.library_folder_paths.push_back(
+            this->get_output_path().string());
+        super.add_lib_file(lib_name);
     }
 }

@@ -39,7 +39,7 @@ bool ccc::project::process(std::vector<std::string> args) {
         for (size_t i = 0; i < tasks.size(); i++) {
             std::vector<std::string> path{this->loc_info + ":"};
             tasks[i]->process(config, path);
-            if (tasks[i]->status.size() != 0) {
+            if (tasks[i]->get_status().size() != 0) {
                 status = false;
             }
 

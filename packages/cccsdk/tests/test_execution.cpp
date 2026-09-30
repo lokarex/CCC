@@ -26,8 +26,8 @@ TEST_CASE("execution initializes output path and platform suffix") {
     execution exe("sample", "sample executable");
     exe.init(cfg);
 
-    CHECK(exe.output_path == "./build/bin");
-    CHECK(exe.name == "sample.exe");
+    CHECK(exe.get_output_path() == "./build/bin");
+    CHECK(exe.get_name() == "sample.exe");
 }
 
 TEST_CASE("execution link records command failure in status") {
@@ -40,12 +40,12 @@ TEST_CASE("execution link records command failure in status") {
     fs::create_directories(out_dir);
 
     execution exe("__test_execution_link_failure", "link failure");
-    exe.output_path = out_dir;
+    exe.set_output_path(out_dir);
     exe.init(cfg);
     exe.config.toolchain.link_format = Format(quiet_failure_command());
 
     exe.link(cfg);
 
-    REQUIRE_FALSE(exe.status.empty());
-    CHECK(exe.status[0].find("Fail to link") != std::string::npos);
+    REQUIRE_FALSE(exe.get_status().empty());
+    CHECK(exe.get_status()[0].find("Fail to link") != std::string::npos);
 }
