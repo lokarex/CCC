@@ -278,22 +278,22 @@ void ccc::build_target::compile_source_file(const ccc::config& project_cfg,
     }
 }
 
-void ccc::build_target::add_source_file(const std::string& file_path) {
+void ccc::build_target::add_source_file(const fs::path& file_path) {
     // Keep the original spelling for the compile command.
     this->source_files.emplace_back(file_path);
     return;
 }
 
 void ccc::build_target::add_source_files(
-    const std::initializer_list<std::string>& file_paths) {
-    for (auto file_path : file_paths) {
+    const std::initializer_list<fs::path>& file_paths) {
+    for (const auto& file_path : file_paths) {
         this->source_files.emplace_back(file_path);
     }
     return;
 }
 
 void ccc::build_target::add_source_files(
-    const std::initializer_list<std::string>& dir_paths,
+    const std::initializer_list<fs::path>& dir_paths,
     const std::initializer_list<std::string>& suffixs, bool recursive) {
     namespace fs = std::filesystem;
 
@@ -302,7 +302,7 @@ void ccc::build_target::add_source_files(
 
     // Process each directory in the input list
     for (const auto& dir : dir_paths) {
-        const fs::path dir_path(dir);
+        const fs::path& dir_path = dir;
 
         // Skip invalid directories
         if (!fs::exists(dir_path))
@@ -348,13 +348,13 @@ void ccc::build_target::add_source_files(
     }
 }
 void ccc::build_target::add_source_files(
-    const std::initializer_list<std::string>& dir_paths,
-    auto judge(const std::string&)->bool, bool recursive) {
+    const std::initializer_list<fs::path>& dir_paths,
+    auto judge(const fs::path&)->bool, bool recursive) {
     namespace fs = std::filesystem;
 
     // Iterate through each directory path provided in dir_paths
     for (const auto& dir : dir_paths) {
-        const fs::path dir_path(dir);
+        const fs::path& dir_path = dir;
 
         // Skip if the directory does not exist or is not a valid directory
         if (!fs::exists(dir_path) || !fs::is_directory(dir_path))
@@ -368,11 +368,9 @@ void ccc::build_target::add_source_files(
 
                 // Check if the entry is a regular file and not a symbolic link
                 if (entry.is_regular_file() && !entry.is_symlink()) {
-                    std::string path = entry.path().string();
-
                     // If the judge function returns true for this file, add it
                     // to source_files
-                    if (judge(path))
+                    if (judge(entry.path()))
                         source_files.emplace_back(entry.path());
                 }
             }
@@ -383,19 +381,17 @@ void ccc::build_target::add_source_files(
 
                 // Check if the entry is a regular file and not a symbolic link
                 if (entry.is_regular_file() && !entry.is_symlink()) {
-                    std::string path = entry.path().string();
-
                     // If the judge function returns true for this file, add it
                     // to source_files
-                    if (judge(path))
+                    if (judge(entry.path()))
                         source_files.emplace_back(entry.path());
                 }
             }
         }
     }
 }
-void ccc::build_target::remove_source_file(const std::string& file_path) {
-    const fs::path identity = fs::path(file_path).lexically_normal();
+void ccc::build_target::remove_source_file(const fs::path& file_path) {
+    const fs::path identity = file_path.lexically_normal();
     size_t index = 0;
     for (size_t i = 0; i < source_files.size(); ++i) {
         if (source_files[i].lexically_normal() != identity) {
@@ -411,10 +407,10 @@ void ccc::build_target::remove_source_file(const std::string& file_path) {
 }
 
 void ccc::build_target::remove_source_files(
-    const std::initializer_list<std::string>& file_paths) {
+    const std::initializer_list<fs::path>& file_paths) {
     // Iterate through paths to remove
     for (const auto& path : file_paths) {
-        const fs::path identity = fs::path(path).lexically_normal();
+        const fs::path identity = path.lexically_normal();
         // Reimplement single removal logic for each path
         size_t index = 0;
         for (size_t i = 0; i < source_files.size(); ++i) {
@@ -430,13 +426,13 @@ void ccc::build_target::remove_source_files(
     }
 }
 
-int ccc::build_target::remove_source_files(bool (*judge)(const std::string&)) {
+int ccc::build_target::remove_source_files(bool (*judge)(const fs::path&)) {
     int removed_count = 0;
     size_t index = 0;
 
     // Process all elements
     for (size_t i = 0; i < source_files.size(); ++i) {
-        if (!judge(source_files[i].string())) { // Keep non-matching elements
+        if (!judge(source_files[i])) { // Keep non-matching elements
             // Shift elements to maintain order
             if (index != i) {
                 source_files[index] = std::move(source_files[i]);
@@ -451,8 +447,8 @@ int ccc::build_target::remove_source_files(bool (*judge)(const std::string&)) {
     return removed_count;
 }
 
-bool ccc::build_target::find_source_file(const std::string& file_path) {
-    const fs::path identity = fs::path(file_path).lexically_normal();
+bool ccc::build_target::find_source_file(const fs::path& file_path) {
+    const fs::path identity = file_path.lexically_normal();
     // Implement linear search manually
     for (const auto& path : source_files) {
         if (path.lexically_normal() == identity) {

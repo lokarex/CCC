@@ -14,30 +14,6 @@ namespace ccc {
 
 /* The base class of all build targets.  */
 class build_target : public ccc::config_manager {
-  public:
-    /**
-     * @brief Construct a new build target object.
-     *
-     * @param name The name of the target.
-     * @param description The description of the target.
-     * @param loc The location of the target.
-     */
-    build_target(std::string name, std::string description,
-                 std::source_location loc);
-
-    /**
-     * @brief Construct a new build target object by copying another
-     *        target object.
-     *
-     * @param other The build target object to be copied.
-     */
-    build_target(const build_target& other)
-        : config_manager(other.config), name(other.name),
-          output_path(other.output_path), obj_path(other.obj_path),
-          source_files(other.source_files), obj_files(other.obj_files),
-          lib_files(other.lib_files), dependencies(other.dependencies),
-          loc(other.loc), status(other.status), loc_info(other.loc_info) {};
-
   private:
     /* The name of the target. The final product is output_path / name. */
     std::string name;
@@ -74,6 +50,29 @@ class build_target : public ccc::config_manager {
 
   public:
     /**
+     * @brief Construct a new build target object.
+     *
+     * @param name The name of the target.
+     * @param description The description of the target.
+     * @param loc The location of the target.
+     */
+    build_target(std::string name, std::string description,
+                 std::source_location loc);
+
+    /**
+     * @brief Construct a new build target object by copying another
+     *        target object.
+     *
+     * @param other The build target object to be copied.
+     */
+    build_target(const build_target& other)
+        : config_manager(other.config), name(other.name),
+          output_path(other.output_path), obj_path(other.obj_path),
+          source_files(other.source_files), obj_files(other.obj_files),
+          lib_files(other.lib_files), dependencies(other.dependencies),
+          loc(other.loc), status(other.status), loc_info(other.loc_info) {};
+
+    /**
      * @brief Get the name of the build target.
      *
      * @return A const reference to the current target name, including
@@ -104,7 +103,8 @@ class build_target : public ccc::config_manager {
      *
      * @return A const reference to the source files.
      */
-    const std::vector<std::filesystem::path>& get_source_files() const noexcept {
+    const std::vector<std::filesystem::path>&
+    get_source_files() const noexcept {
         return source_files;
     }
 
@@ -150,7 +150,9 @@ class build_target : public ccc::config_manager {
      *
      * @return A const reference to the recorded build errors.
      */
-    const std::vector<std::string>& get_status() const noexcept { return status; }
+    const std::vector<std::string>& get_status() const noexcept {
+        return status;
+    }
 
     /**
      * @brief Get the simple information of the build target location.
@@ -256,81 +258,81 @@ class build_target : public ccc::config_manager {
     /**
      * @brief Add file_path to the source_files variable.
      *
-     * @param file_path The file_path need to be added to the source_files
-     *        variable.
+     * @param file_path The filesystem path of the source file to add.
      */
-    virtual void add_source_file(const std::string& file_path) final;
+    virtual void add_source_file(const std::filesystem::path& file_path) final;
 
     /**
      * @brief Add these file_paths to the source_files variable.
      *
-     * @param file_paths The file_paths need to be added to the source_files
-     *        variable.
+     * @param file_paths The filesystem paths of the source files to add.
      */
     virtual void add_source_files(
-        const std::initializer_list<std::string>& file_paths) final;
+        const std::initializer_list<std::filesystem::path>& file_paths) final;
 
     /**
      * @brief Add all files in the dir_paths which have the suffix in suffixs to
      *        the the source_files variable.(Default recursion into subfolders.)
      *
-     * @param dir_paths The dir_paths which have the files need to be added to.
+     * @param dir_paths The filesystem paths of the directories to scan.
      * @param suffixs The suffixs of the files need to be added to the
      *        source_files variable.
      * @param recursive Decide whether to recursively enter subfolders.
      */
-    virtual void
-    add_source_files(const std::initializer_list<std::string>& dir_paths,
-                     const std::initializer_list<std::string>& suffixs,
-                     bool recursive = true) final;
+    virtual void add_source_files(
+        const std::initializer_list<std::filesystem::path>& dir_paths,
+        const std::initializer_list<std::string>& suffixs,
+        bool recursive = true) final;
 
     /**
      * @brief Add all files in the dir_paths which satisfy the judge function to
      *        the the source_files variable.(Default recursion into subfolders.)
      *
-     * @param dir_paths The dir_paths which have the files need to be added to.
-     * @param judge The function which decides whether to add the file.
+     * @param dir_paths The filesystem paths of the directories to scan.
+     * @param judge The function which receives a filesystem path and decides
+     *              whether to add the file.
      * @param recursive Decide whether to recursively enter subfolders.
      */
-    virtual void
-    add_source_files(const std::initializer_list<std::string>& dir_paths,
-                     auto judge(const std::string&)->bool,
-                     bool recursive = true) final;
+    virtual void add_source_files(
+        const std::initializer_list<std::filesystem::path>& dir_paths,
+        auto judge(const std::filesystem::path&)->bool,
+        bool recursive = true) final;
 
     /**
      * @brief Remove file_path from the source_files variable.
      *
-     * @param file_path The file_path need to be removed from the source_files
-     *        variable.
+     * @param file_path The filesystem path of the source file to remove.
      */
-    virtual void remove_source_file(const std::string& file_path) final;
+    virtual void
+    remove_source_file(const std::filesystem::path& file_path) final;
 
     /**
      * @brief Remove these file_paths from the source_files variable.
      *
-     * @param file_paths The file_paths need to be removed from the source_files
-     *        variable.
+     * @param file_paths The filesystem paths of the source files to remove.
      */
     virtual void remove_source_files(
-        const std::initializer_list<std::string>& file_paths) final;
+        const std::initializer_list<std::filesystem::path>& file_paths) final;
 
     /**
      * @brief Remove all files in the source_files variable which satisfy the
      *        judge function.
      *
-     * @param judge The function which decides whether to remove the file.
+     * @param judge The function which receives a filesystem path and decides
+     *              whether to remove the file.
      * @return int The number of files removed.
      */
-    virtual int remove_source_files(auto judge(const std::string&)->bool) final;
+    virtual int
+    remove_source_files(auto judge(const std::filesystem::path&)->bool) final;
 
     /**
      * @brief Find whether the file_path is in the source_files variable.
      *
-     * @param file_path The file_path need to be found in the source_files.
+     * @param file_path The filesystem path of the source file to find.
      * @return true The file_path is in the source_files.
      * @return false The file_path is not in the source_files.
      */
-    virtual bool find_source_file(const std::string& file_path) final;
+    virtual bool find_source_file(const std::filesystem::path& file_path) final;
 
   protected:
     /**

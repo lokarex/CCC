@@ -16,17 +16,18 @@ using namespace ccc;
 namespace fs = std::filesystem;
 
 namespace {
-#define CHECK_BUILD_TARGET_FIELD(field, ...)                                    \
+#define CHECK_BUILD_TARGET_FIELD(field, ...)                                   \
     template <typename T>                                                      \
-    concept exposes_##field = requires(T& target) { target.field; };            \
+    concept exposes_##field = requires(T& target) { target.field; };           \
     template <typename T>                                                      \
-    concept reads_##field = requires(const T& target, T& mutable_target) {      \
-        { target.get_##field() } noexcept -> std::same_as<__VA_ARGS__>;         \
-        { mutable_target.get_##field() } noexcept -> std::same_as<__VA_ARGS__>; \
+    concept reads_##field = requires(const T& target, T& mutable_target) {     \
+        { target.get_##field() } noexcept -> std::same_as<__VA_ARGS__>;        \
+        { mutable_target.get_##field()                                         \
+        } noexcept -> std::same_as<__VA_ARGS__>;                               \
     };                                                                         \
-    static_assert(!exposes_##field<build_target>,                               \
+    static_assert(!exposes_##field<build_target>,                              \
                   #field " must not be publicly accessible");                  \
-    static_assert(reads_##field<build_target>,                                  \
+    static_assert(reads_##field<build_target>,                                 \
                   #field " must have a read-only noexcept getter")
 
 CHECK_BUILD_TARGET_FIELD(name, const std::string&);
@@ -48,21 +49,46 @@ template <typename T>
 concept exposes_set_name = requires(T& target) { target.set_name("name"); };
 
 template <typename T>
-concept exposes_add_status = requires(T& target) { target.add_status("error"); };
+concept exposes_add_status =
+    requires(T& target) { target.add_status("error"); };
 
 static_assert(!exposes_set_name<build_target>);
 static_assert(!exposes_add_status<build_target>);
 
 template <typename T>
-concept accepts_build_inputs = requires(T& target, const fs::path& path,
-                                       const std::string& library_name) {
-    { target.set_output_path(path) } -> std::same_as<void>;
-    { target.set_obj_path(path) } -> std::same_as<void>;
-    { target.add_obj_file(path) } -> std::same_as<void>;
-    { target.add_lib_file(library_name) } -> std::same_as<void>;
-};
+concept accepts_build_inputs =
+    requires(T& target, const fs::path& path, const std::string& library_name) {
+        { target.set_output_path(path) } -> std::same_as<void>;
+        { target.set_obj_path(path) } -> std::same_as<void>;
+        { target.add_obj_file(path) } -> std::same_as<void>;
+        { target.add_lib_file(library_name) } -> std::same_as<void>;
+    };
 
 static_assert(accepts_build_inputs<build_target>);
+
+static_assert(std::same_as<decltype(&build_target::add_source_file),
+                           void (build_target::*)(const fs::path&)>);
+static_assert(std::same_as<decltype(&build_target::remove_source_file),
+                           void (build_target::*)(const fs::path&)>);
+static_assert(std::same_as<decltype(&build_target::find_source_file),
+                           bool (build_target::*)(const fs::path&)>);
+
+template <typename T>
+concept accepts_source_inputs =
+    requires(T& target, const fs::path& path,
+             const std::initializer_list<fs::path>& paths,
+             bool (*judge)(const fs::path&)) {
+        { target.add_source_file(path) } -> std::same_as<void>;
+        { target.remove_source_file(path) } -> std::same_as<void>;
+        { target.find_source_file(path) } -> std::same_as<bool>;
+        { target.add_source_files(paths) } -> std::same_as<void>;
+        { target.remove_source_files(paths) } -> std::same_as<void>;
+        { target.add_source_files(paths, {".cpp"}) } -> std::same_as<void>;
+        { target.add_source_files(paths, judge, false) } -> std::same_as<void>;
+        { target.remove_source_files(judge) } -> std::same_as<int>;
+    };
+
+static_assert(accepts_source_inputs<build_target>);
 
 class test_target : public build_target {
   public:
@@ -87,6 +113,59 @@ TEST_CASE("build_target adds one source file") {
     CHECK(target.find_source_file("main.cpp"));
     CHECK_FALSE(target.find_source_file("ohter.cpp"));
 }
+
+TEST_CASE("build_target accepts source paths returned by its getter") {
+    test_target target("test_build_target_source_path_inputs", "source paths");
+    const fs::path source = "./src/../src/main.cpp";
+
+    target.add_source_file(source);
+    REQUIRE(target.get_source_files().size() == 1);
+    CHECK(target.get_source_files().front() == source);
+    CHECK(target.find_source_file(target.get_source_files().front()));
+
+    target.remove_source_file(target.get_source_files().front());
+    CHECK(target.get_source_files().empty());
+}
+
+TEST_CASE("build_target accepts mixed source path and string inputs") {
+    test_target target("test_build_target_mixed_source_inputs", "mixed inputs");
+    const fs::path source = "src/main.cpp";
+    const std::string helper = "src/helper.cpp";
+    const std::initializer_list<fs::path> files = {source, helper, "notes.txt"};
+
+    target.add_source_files(files);
+    CHECK(target.get_source_files().size() == 3);
+    CHECK(target.find_source_file(source));
+    CHECK(target.find_source_file(helper));
+    CHECK(target.find_source_file("notes.txt"));
+    target.remove_source_files({source, helper});
+    CHECK(target.get_source_files() == std::vector<fs::path>{"notes.txt"});
+
+    target.add_source_file(helper);
+    CHECK(target.find_source_file(helper));
+    target.remove_source_file(helper);
+    CHECK_FALSE(target.find_source_file(helper));
+    const std::initializer_list<fs::path> remaining = {"notes.txt"};
+    target.remove_source_files(remaining);
+    CHECK(target.get_source_files().empty());
+}
+
+#ifdef _WIN32
+TEST_CASE("build_target accepts native wide source paths") {
+    test_target target("test_build_target_wide_source_paths", "wide paths");
+    const fs::path source = L"src/\u6d4b\u8bd5.cpp";
+    const fs::path helper = L"src/\u7f16\u8bd1.cpp";
+
+    target.add_source_file(source);
+    target.add_source_files({helper});
+    CHECK(target.find_source_file(source));
+    CHECK(target.find_source_file(helper));
+    target.remove_source_file(source);
+    CHECK_FALSE(target.find_source_file(source));
+    target.remove_source_files({helper});
+    CHECK(target.get_source_files().empty());
+}
+#endif
 
 TEST_CASE("build_target matches equivalent source path spellings") {
     test_target target("test_build_target_normalizes_source_paths",
@@ -117,7 +196,8 @@ TEST_CASE("build_target copy keeps path values independent") {
     CHECK(copy.get_output_path() == fs::path("build/bin"));
     CHECK(copy.get_obj_path() == fs::path("build/obj"));
     CHECK(copy.get_source_files() == std::vector<fs::path>{"./src/main.cpp"});
-    CHECK(copy.get_obj_files() == std::vector<fs::path>{"build/obj/src/main.o"});
+    CHECK(copy.get_obj_files() ==
+          std::vector<fs::path>{"build/obj/src/main.o"});
 }
 
 TEST_CASE("build_target rejects a source path outside the project") {
@@ -140,7 +220,8 @@ TEST_CASE("build_target rejects a source path outside the project") {
     CHECK_FALSE(fs::exists(target.get_obj_path()));
 }
 
-TEST_CASE("build_target permits no-source targets without an object directory") {
+TEST_CASE(
+    "build_target permits no-source targets without an object directory") {
     test_target target("test_build_target_no_source_object_path",
                        "no source files");
     target.set_obj_path({});
@@ -161,7 +242,7 @@ TEST_CASE("build_target rejects an absolute source path") {
     fs::remove_all(target.get_obj_path());
     target.add_source_file("packages/cccsdk/tests/test_build_target.cpp");
     target.add_source_file(
-        fs::absolute("packages/cccsdk/tests/test_build_target.cpp").string());
+        fs::absolute("packages/cccsdk/tests/test_build_target.cpp"));
 
     config project_cfg;
     project_cfg.is_print = false;
@@ -186,7 +267,7 @@ TEST_CASE("build_target places normalized objects below obj_path") {
     target.config.toolchain.compile_format =
         target.config.toolchain.execution_compile_format;
     target.set_obj_path(root / "obj");
-    target.add_source_file((root / "src" / ".." / "src" / "main.cpp").string());
+    target.add_source_file(root / "src" / ".." / "src" / "main.cpp");
 
     config project_cfg;
     project_cfg.is_print = false;
@@ -205,7 +286,8 @@ TEST_CASE("build_target places normalized objects below obj_path") {
 #else
     expected.replace_extension(".o");
 #endif
-    CHECK(target.get_obj_files()[0].generic_string() == expected.generic_string());
+    CHECK(target.get_obj_files()[0].generic_string() ==
+          expected.generic_string());
     CHECK(fs::exists(expected));
 }
 
@@ -273,8 +355,8 @@ TEST_CASE("build_target removes matching source files and returns the count") {
     REQUIRE(target.find_source_file("header.h"));
 
     const int removed =
-        target.remove_source_files([](const std::string& path) -> bool {
-            return fs::path(path).extension() == ".cpp";
+        target.remove_source_files([](const fs::path& path) -> bool {
+            return path.extension() == ".cpp";
         });
 
     CHECK(removed == 2);
@@ -295,18 +377,15 @@ TEST_CASE("build_target selects files by suffix and recursion setting") {
     std::ofstream(root / "nested" / "helper.cpp") << "";
     std::ofstream(root / "nested" / "header.h") << "";
 
-    const std::string main_cpp =
-        (root / "main.cpp").lexically_normal().string();
-    const std::string notes_txt =
-        (root / "notes.txt").lexically_normal().string();
-    const std::string helper_cpp =
-        (root / "nested" / "helper.cpp").lexically_normal().string();
-    const std::string header_h =
-        (root / "nested" / "header.h").lexically_normal().string();
+    const fs::path main_cpp = (root / "main.cpp").lexically_normal();
+    const fs::path notes_txt = (root / "notes.txt").lexically_normal();
+    const fs::path helper_cpp =
+        (root / "nested" / "helper.cpp").lexically_normal();
+    const fs::path header_h = (root / "nested" / "header.h").lexically_normal();
 
     test_target recursive("test_build_target_suffix_recursive",
                           "select source files by suffix recursively");
-    recursive.add_source_files({root.string()}, {".cpp"});
+    recursive.add_source_files({root}, {".cpp"});
     CHECK(recursive.find_source_file(main_cpp));
     CHECK(recursive.find_source_file(helper_cpp));
     CHECK_FALSE(recursive.find_source_file(notes_txt));
@@ -314,7 +393,7 @@ TEST_CASE("build_target selects files by suffix and recursion setting") {
 
     test_target flat("test_build_target_suffix_flat",
                      "select source files by suffix without recursion");
-    flat.add_source_files({root.string()}, {".cpp"}, false);
+    flat.add_source_files({root}, {".cpp"}, false);
     CHECK(flat.find_source_file(main_cpp));
     CHECK_FALSE(flat.find_source_file(helper_cpp));
     CHECK_FALSE(flat.find_source_file(notes_txt));
@@ -332,21 +411,19 @@ TEST_CASE("build_target selects files by predicate and recursion setting") {
     std::ofstream(root / "nested" / "keep_helper.h") << "";
     std::ofstream(root / "nested" / "skip_helper.cpp") << "";
 
-    const std::string keep_main =
-        (root / "keep_main.cpp").lexically_normal().string();
-    const std::string skip_main =
-        (root / "skip_main.cpp").lexically_normal().string();
-    const std::string keep_helper =
-        (root / "nested" / "keep_helper.h").lexically_normal().string();
-    const std::string skip_helper =
-        (root / "nested" / "skip_helper.cpp").lexically_normal().string();
-    const auto keep_named_file = [](const std::string& path) -> bool {
-        return fs::path(path).filename().string().starts_with("keep_");
+    const fs::path keep_main = (root / "keep_main.cpp").lexically_normal();
+    const fs::path skip_main = (root / "skip_main.cpp").lexically_normal();
+    const fs::path keep_helper =
+        (root / "nested" / "keep_helper.h").lexically_normal();
+    const fs::path skip_helper =
+        (root / "nested" / "skip_helper.cpp").lexically_normal();
+    const auto keep_named_file = [](const fs::path& path) -> bool {
+        return path.filename().string().starts_with("keep_");
     };
 
     test_target recursive("test_build_target_predicate_recursive",
                           "select source files by predicate recursively");
-    recursive.add_source_files({root.string()}, keep_named_file);
+    recursive.add_source_files({root}, keep_named_file);
     CHECK(recursive.find_source_file(keep_main));
     CHECK(recursive.find_source_file(keep_helper));
     CHECK_FALSE(recursive.find_source_file(skip_main));
@@ -354,7 +431,7 @@ TEST_CASE("build_target selects files by predicate and recursion setting") {
 
     test_target flat("test_build_target_predicate_flat",
                      "select source files by predicate without recursion");
-    flat.add_source_files({root.string()}, keep_named_file, false);
+    flat.add_source_files({root}, keep_named_file, false);
     CHECK(flat.find_source_file(keep_main));
     CHECK_FALSE(flat.find_source_file(keep_helper));
     CHECK_FALSE(flat.find_source_file(skip_main));
