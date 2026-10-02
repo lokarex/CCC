@@ -25,6 +25,28 @@ ccc::build_target::build_target(std::string name, std::string description,
     this->loc_info = this->name + "(" + this->loc.file_name() + ":" +
                      std::to_string(this->loc.line()) + ")";
 }
+
+void ccc::build_target::set_output_path(const fs::path& path) {
+    output_path = path;
+}
+
+void ccc::build_target::set_obj_path(const fs::path& path) { obj_path = path; }
+
+void ccc::build_target::add_obj_file(const fs::path& path) {
+    obj_files.push_back(path);
+}
+
+void ccc::build_target::add_lib_file(const std::string& name) {
+    lib_files.push_back(name);
+}
+
+void ccc::build_target::add_dependency(const ccc::build_target* dep,
+                                       bool is_transmit, bool is_compile) {
+    dependencies.push_back(
+        std::make_pair(const_cast<ccc::build_target*>(dep),
+                       ccc::dependency_description(is_transmit, is_compile)));
+}
+
 void ccc::build_target::process(const ccc::config& project_cfg,
                                 std::vector<std::string>& path) {
     this->init(project_cfg);
@@ -187,15 +209,15 @@ void ccc::build_target::compile(const ccc::config& project_cfg,
         active_threads++;
 
         // Launch a new thread to compile the source file.
-        threads.emplace_back([this, &project_cfg, source_file,
-                              &active_threads, &cv]() {
-            compile_source_file(project_cfg, source_file);
+        threads.emplace_back(
+            [this, &project_cfg, source_file, &active_threads, &cv]() {
+                compile_source_file(project_cfg, source_file);
 
-            // Decrement the active thread count and notify the waiting
-            // threads.
-            active_threads--;
-            cv.notify_one();
-        });
+                // Decrement the active thread count and notify the waiting
+                // threads.
+                active_threads--;
+                cv.notify_one();
+            });
     }
 
     // Wait for all threads to finish.
@@ -456,4 +478,10 @@ bool ccc::build_target::find_source_file(const fs::path& file_path) {
         }
     }
     return false; // Return false if not found
+}
+
+void ccc::build_target::set_name(const std::string& value) { name = value; }
+
+void ccc::build_target::add_status(const std::string& message) {
+    status.push_back(message);
 }

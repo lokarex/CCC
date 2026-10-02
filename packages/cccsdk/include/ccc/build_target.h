@@ -65,12 +65,7 @@ class build_target : public ccc::config_manager {
      *
      * @param other The build target object to be copied.
      */
-    build_target(const build_target& other)
-        : config_manager(other.config), name(other.name),
-          output_path(other.output_path), obj_path(other.obj_path),
-          source_files(other.source_files), obj_files(other.obj_files),
-          lib_files(other.lib_files), dependencies(other.dependencies),
-          loc(other.loc), status(other.status), loc_info(other.loc_info) {};
+    build_target(const build_target& other) = default;
 
     /**
      * @brief Get the name of the build target.
@@ -167,32 +162,28 @@ class build_target : public ccc::config_manager {
      *
      * @param path The directory for the final product.
      */
-    void set_output_path(const std::filesystem::path& path) {
-        output_path = path;
-    }
+    void set_output_path(const std::filesystem::path& path);
 
     /**
      * @brief Set the object directory without changing other build state.
      *
      * @param path The directory for intermediate products.
      */
-    void set_obj_path(const std::filesystem::path& path) { obj_path = path; }
+    void set_obj_path(const std::filesystem::path& path);
 
     /**
      * @brief Add an object file or library artifact to the link inputs.
      *
      * @param path The path of the object file or library artifact.
      */
-    void add_obj_file(const std::filesystem::path& path) {
-        obj_files.push_back(path);
-    }
+    void add_obj_file(const std::filesystem::path& path);
 
     /**
      * @brief Add a library name to the link inputs.
      *
      * @param name The name of the library required by the build target.
      */
-    void add_lib_file(const std::string& name) { lib_files.push_back(name); }
+    void add_lib_file(const std::string& name);
 
     /**
      * @brief Add a dependency to the build target.
@@ -203,11 +194,7 @@ class build_target : public ccc::config_manager {
      *                   dependencies do not exist.
      */
     void add_dependency(const ccc::build_target* dep, bool is_transmit,
-                        bool is_compile = false) {
-        dependencies.push_back(std::make_pair(
-            const_cast<ccc::build_target*>(dep),
-            ccc::dependency_description(is_transmit, is_compile)));
-    }
+                        bool is_compile = false);
 
     /**
      * @brief Compile all source files in source_files.
@@ -340,14 +327,14 @@ class build_target : public ccc::config_manager {
      *
      * @param value The platform-specific product name.
      */
-    void set_name(const std::string& value) { name = value; }
+    void set_name(const std::string& value);
 
     /**
      * @brief Add a build error from a derived build target.
      *
      * @param message The build error message.
      */
-    void add_status(const std::string& message) { status.push_back(message); }
+    void add_status(const std::string& message);
 
   private:
     /**
